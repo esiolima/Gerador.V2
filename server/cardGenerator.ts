@@ -40,7 +40,7 @@ export type GenerateCardsResult = {
   processedRows: number;
 };
 
-const VALID_TYPES = ["promocao", "cupom", "cashback", "queda", "bc", "soma"];
+const VALID_TYPES = ["promocao", "cupom", "cashback", "queda", "bc", "soma", "nada"];
 
 type ProgressStage =
   | "iniciando"
@@ -111,6 +111,7 @@ export class CardGenerator extends EventEmitter {
     if (normalized.includes("cashback")) return "cashback";
     if (normalized === "bc") return "bc";
     if (normalized.includes("soma")) return "soma";
+    if (normalized.includes("nada")) return "nada";
 
     return "";
   }
@@ -234,7 +235,7 @@ export class CardGenerator extends EventEmitter {
       if (!tipo || !VALID_TYPES.includes(tipo)) {
         throw new Error(
           ```ts
-          `Erro na linha ${line}: tipo "${row.tipo}" não reconhecido. Use promocao, cupom, cashback, queda, bc ou soma.`
+          `Erro na linha ${line}: tipo "${row.tipo}" não reconhecido. Use promocao, cupom, cashback, queda, bc, soma ou nada.`
           ```
 
         );
