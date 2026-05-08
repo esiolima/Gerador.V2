@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=700, initial-scale=1.0" />
+<title>Soma</title>
+
+<style>
+@font-face {
+  font-family: 'Inter';
+  src: url('../fonts/Inter-Regular.ttf') format('truetype');
+  font-weight: 400;
+}
+@font-face {
+  font-family: 'Inter';
+  src: url('../fonts/Inter-Bold.ttf') format('truetype');
+  font-weight: 700;
+}
+@font-face {
+  font-family: 'Inter';
+  src: url('../fonts/Inter-Black.ttf') format('truetype');
+  font-weight: 900;
+}
+
+* {
+  text-transform: uppercase;
+  color: #2b4474;
+  box-sizing: border-box;
+  font-family: 'Inter', sans-serif;
+}
+
+body {
+  margin: 0;
+  width: 700px;
+  height: 1058px;
+  background: transparent;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.card {
+  width: 700px;
+  height: 1058px;
+  padding: 60px 40px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  background: #ffffff;
+  overflow: hidden;
+  position: relative;
+}
+
+/* ===== BLOCO CENTRAL ===== */
+.bloco-central {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.valor-container {
+  width: 100%;
+  height: 600px; /* Aumentado para dar mais espaço à frase principal */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.valor-texto {
+  font-weight: 900;
+  font-size: 480px;
+  text-align: center;
+  white-space: normal;
+  word-break: keep-all;
+  overflow-wrap: normal;
+  line-height: 0.95;
+}
+
+/* ===== INFERIOR ===== */
+.bloco-inferior {
+  margin-top: 40px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.complemento {
+  text-align: center;
+  font-size: 32px; /* Um pouco maior que o original para destacar como no print */
+  font-weight: 700;
+  max-width: 600px;
+  line-height: 1.15;
+  word-break: break-word;
+}
+
+</style>
+</head>
+
+<body>
+
+<div class="card">
+
+  <div class="bloco-central">
+    <div class="valor-container" id="valor-container">
+      <div class="valor-texto" id="valor-texto">
+        {{VALOR}}
+      </div>
+    </div>
+  </div>
+
+  <div class="bloco-inferior">
+    <div class="complemento">{{COMPLEMENTO}}</div>
+  </div>
+
+</div>
+
+<script>
+(function () {
+  const container = document.getElementById("valor-container");
+  const el = document.getElementById("valor-texto");
+
+  if (container && el) {
+    let fontSize = 480;
+    const min = 40;
+
+    el.style.fontSize = fontSize + "px";
+    el.style.whiteSpace = "normal";
+    el.style.wordBreak = "keep-all";
+    el.style.overflowWrap = "normal";
+
+    // Ajuste automático para caber no container
+    while (
+      (el.scrollHeight > container.clientHeight ||
+       el.scrollWidth > container.clientWidth) &&
+      fontSize > min
+    ) {
+      fontSize -= 2;
+      el.style.fontSize = fontSize + "px";
+    }
+  }
+})();
+</script>
+
+</body>
+</html>
