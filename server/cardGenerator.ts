@@ -211,70 +211,9 @@ export class CardGenerator extends EventEmitter {
   }
 
   private validateRows(rows: any[]): void {
-        );
-      }
-
-      if (!complemento) {
-        throw new Error(
-          `Linha ${line}: template SOMA exige o campo COMPLEMENTO.`
-        );
-      }
-
-      return;
+    if (!rows || rows.length === 0) {
+      throw new Error("A planilha está vazia.");
     }
-
-    // LOGO obrigatório
-    if (!logo) {
-      throw new Error(
-        `Linha ${line}: campo LOGO não pode ficar vazio.`
-      );
-    }
-
-    // CUPOM
-    if (tipo === "cupom") {
-      if (!cupom) {
-        throw new Error(
-          `Linha ${line}: template CUPOM exige o campo CUPOM preenchido.`
-        );
-      }
-    }
-
-    // PROMOCAO
-    if (tipo === "promocao") {
-      if (!valor) {
-        throw new Error(
-          `Linha ${line}: template PROMOCAO exige o campo VALOR.`
-        );
-      }
-
-      return;
-    }
-
-    // QUEDA / BC / CASHBACK
-    if (["queda", "bc", "cashback"].includes(tipo)) {
-      if (!valor) {
-        throw new Error(
-          `Linha ${line}: template ${tipo.toUpperCase()} exige o campo VALOR.`
-        );
-      }
-
-      const normalizedValue = valor
-        .replace(/%/g, "")
-        .replace(/\./g, ",")
-        .trim();
-
-      const numericValidation = normalizedValue.replace(/,/g, ".");
-
-      if (isNaN(Number(numericValidation))) {
-        throw new Error(
-          `Linha ${line}: template ${tipo.toUpperCase()} aceita apenas números no VALOR.`
-        );
-      }
-
-      row.valor = normalizedValue;
-    }
-  });
-}
 
     const headers = Object.keys(rows[0] ?? {}).map((h) => h.toLowerCase().trim());
     const missing = ["tipo"].filter((h) => !headers.includes(h));
@@ -288,26 +227,55 @@ export class CardGenerator extends EventEmitter {
     rows.forEach((row, index) => {
       const line = index + 2;
       const tipo = this.normalizeType(row.tipo);
+      const valor = String(row.valor ?? "").trim();
+      const cupom = String(row.cupom ?? "").trim();
+      const logo = String(row.logo ?? "").trim();
+      const complemento = String(row.complemento ?? "").trim();
 
       if (!String(row.tipo ?? "").trim()) {
         throw new Error(`Erro na linha ${line}: a coluna "tipo" está vazia.`);
       }
 
-      if (!tipo || !VALID_TYPES.includes(tipo)) { 
-        throw new Error( 
-           `Erro na linha ${line}: tipo "${row.tipo}" não reconhecido. Use promocao, cupom, cashback, queda, bc, soma ou nada.` 
-        ); 
-      }
-      
-
-      if (tipo === "cupom" && !String(row.cupom ?? "").trim()) {
+      if (!tipo || !VALID_TYPES.includes(tipo)) {
         throw new Error(
-          `Erro na linha ${line}: template cupom exige a coluna "cupom" preenchida.`
+          `Erro na linha ${line}: tipo "${row.tipo}" não reconhecido. Use promocao, cupom, cashback, queda, bc, soma ou nada.`
         );
       }
 
-      if (!String(row.valor ?? "").trim()) {
-        throw new Error(`Erro na linha ${line}: a coluna "valor" está vazia.`);
+      // Validação por tipo
+      if (tipo === "soma") {
+        if (!valor) throw new Error(`Linha ${line}: template SOMA exige o campo VALOR.`);
+        if (!complemento) throw new Error(`Linha ${line}: template SOMA exige o campo COMPLEMENTO.`);
+        return;
+      }
+
+      if (tipo === "nada") return;
+
+      // LOGO costuma ser obrigatório para os demais
+      if (!logo) {
+        throw new Error(`Linha ${line}: campo LOGO não pode ficar vazio.`);
+      }
+
+      if (tipo === "cupom" && !cupom) {
+        throw new Error(`Linha ${line}: template CUPOM exige o campo CUPOM preenchido.`);
+      }
+
+      if (tipo === "promocao" && !valor) {
+        throw new Error(`Linha ${line}: template PROMOCAO exige o campo VALOR.`);
+      }
+
+      if (["queda", "bc", "cashback"].includes(tipo)) {
+        if (!valor) {
+          throw new Error(`Linha ${line}: template ${tipo.toUpperCase()} exige o campo VALOR.`);
+        }
+
+        const normalizedValue = valor.replace(/%/g, "").replace(/\./g, ",").trim();
+        const numericValidation = normalizedValue.replace(/,/g, ".");
+
+        if (isNaN(Number(numericValidation))) {
+          throw new Error(`Linha ${line}: template ${tipo.toUpperCase()} aceita apenas números no VALOR.`);
+        }
+        row.valor = normalizedValue;
       }
     });
   }
@@ -631,15 +599,6 @@ export class CardGenerator extends EventEmitter {
             )
           : "";
 
-        this.emitProgress({
-          processed,
-          total,
-          currentIndex: index + 1,
-          currentCard: `Card ${index + 1}/${total} - carregando template`,
-          stage: "carregando_template",
-          detail: `Arquivo: templates/${tipo}.html`,
-        });
-
         let html = fs.readFileSync(templatePath, "utf8");
 
         html = this.replacePlaceholders(html, row, tipo, logoBase64, seloBase64);
@@ -673,43 +632,11 @@ export class CardGenerator extends EventEmitter {
         let page: Page | null = null;
 
         try {
-          console.log(`[CardGenerator] Gerando card ${index + 1}/${total} - tipo: ${tipo}`);
-
-          this.emitProgress({
-            processed,
-            total,
-            currentIndex: index + 1,
-            currentCard: `Card ${index + 1}/${total} - abrindo renderizador`,
-            stage: "renderizando_html",
-            detail: "Criando página isolada no Chromium.",
-          });
-
           page = await this.browser.newPage();
-
-          page.on("console", (msg) => {
-            const text = msg.text();
-            if (text.includes("erro") || text.includes("Error")) {
-              console.log(`[CardGenerator][console][card ${index + 1}] ${text}`);
-            }
-          });
-
-          page.on("pageerror", (error) => {
-            console.error(`[CardGenerator][pageerror][card ${index + 1}]`, error);
-          });
-
           await page.setViewport({
             width: 700,
             height: 1058,
             deviceScaleFactor: 1,
-          });
-
-          this.emitProgress({
-            processed,
-            total,
-            currentIndex: index + 1,
-            currentCard: `Card ${index + 1}/${total} - renderizando HTML`,
-            stage: "renderizando_html",
-            detail: "Aplicando o HTML final do card no Chromium.",
           });
 
           await page.setContent(html, {
@@ -717,46 +644,14 @@ export class CardGenerator extends EventEmitter {
             timeout: 60000,
           });
 
-          this.emitProgress({
-            processed,
-            total,
-            currentIndex: index + 1,
-            currentCard: `Card ${index + 1}/${total} - aguardando fontes e imagens`,
-            stage: "aguardando_recursos",
-            detail: "Aguardando carregamento de fontes, logos, selos e ajustes de texto.",
-          });
-
           await this.waitForPageReady(page);
-
-          this.emitProgress({
-            processed,
-            total,
-            currentIndex: index + 1,
-            currentCard: `Card ${index + 1}/${total} - gerando PDF`,
-            stage: "gerando_pdf",
-            detail: "Exportando o card em PDF.",
-          });
 
           await page.pdf({
             path: pdfPath,
             width: "700px",
             height: "1058px",
             printBackground: true,
-            margin: {
-              top: "0px",
-              right: "0px",
-              bottom: "0px",
-              left: "0px",
-            },
-          });
-
-          this.emitProgress({
-            processed,
-            total,
-            currentIndex: index + 1,
-            currentCard: `Card ${index + 1}/${total} - gerando imagem`,
-            stage: "gerando_png",
-            detail: "Exportando a prévia PNG do card.",
+            margin: { top: "0px", right: "0px", bottom: "0px", left: "0px" },
           });
 
           await page.screenshot({
@@ -765,33 +660,10 @@ export class CardGenerator extends EventEmitter {
             fullPage: false,
           });
         } catch (pageErr) {
-          const errorMessage =
-            pageErr instanceof Error ? pageErr.message : String(pageErr || "erro desconhecido");
-          const friendlyMessage = `Erro no card ${index + 1}/${total} (${tipo}). Última etapa: geração/renderização do card.`;
-
-          console.error(`[CardGenerator] ${friendlyMessage}`, pageErr);
-
-          this.emitProgress({
-            processed,
-            total,
-            currentIndex: index + 1,
-            currentCard: friendlyMessage,
-            stage: "erro",
-            detail: errorMessage,
-          });
-
-          throw new Error(`${friendlyMessage} Detalhe técnico: ${errorMessage}`);
+          throw pageErr;
         } finally {
-          if (page) {
-            try {
-              await page.close();
-            } catch {
-              // Ignora erro ao fechar página
-            }
-          }
+          if (page) await page.close();
         }
-
-        await new Promise((resolve) => setTimeout(resolve, 150));
 
         processed++;
 
@@ -815,30 +687,12 @@ export class CardGenerator extends EventEmitter {
         };
 
         cards.push(card);
-
-        this.emitProgress({
-          processed,
-          total,
-          currentIndex: index + 1,
-          currentCard: `Card ${processed}/${total} finalizado`,
-          stage: "card_finalizado",
-          detail: "PDF e imagem gerados com sucesso.",
-        });
       }
     }
 
     const baseName = originalFileName
       ? path.parse(originalFileName).name
       : path.parse(excelFilePath).name;
-
-    this.emitProgress({
-      processed,
-      total,
-      percentage: 96,
-      currentCard: "Compactando arquivos em ZIP...",
-      stage: "compactando_zip",
-      detail: "Reunindo todos os PDFs gerados em um único arquivo.",
-    });
 
     const zipName = `${this.sanitizeFileName(baseName)}_${this.getDateStamp()}.zip`;
     const zipPath = this.getUniqueFilePath(path.join(jobDir, zipName));
@@ -847,35 +701,10 @@ export class CardGenerator extends EventEmitter {
     const archive = archiver("zip", { zlib: { level: 9 } });
 
     archive.pipe(output);
-
     for (const card of cards) {
-      archive.file(path.join(jobDir, card.pdfName), {
-        name: card.pdfName,
-      });
+      archive.file(path.join(jobDir, card.pdfName), { name: card.pdfName });
     }
-
     await archive.finalize();
-
-    await new Promise<void>((resolve, reject) => {
-      output.on("close", () => resolve());
-      output.on("error", reject);
-      archive.on("error", reject);
-    });
-
-    fs.writeFileSync(
-      path.join(jobDir, "cards.json"),
-      JSON.stringify({ jobId, cards }, null, 2),
-      "utf8"
-    );
-
-    this.emitProgress({
-      processed,
-      total,
-      percentage: 100,
-      currentCard: "Finalizado",
-      stage: "finalizado",
-      detail: "Todos os cards foram gerados e compactados.",
-    });
 
     return {
       zipPath,
