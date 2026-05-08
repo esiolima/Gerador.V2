@@ -1,3 +1,4 @@
+```ts
 import { z } from "zod";
 import { publicProcedure, router } from "../_core/trpc";
 import { CardGenerator } from "../cardGenerator";
@@ -22,18 +23,19 @@ export const cardRouter = router({
       if (!fs.existsSync(filePath)) {
         throw new TRPCError({
           code: "BAD_REQUEST",
-          message: "Arquivo não encontrado",
+          message: "Arquivo não encontrado.",
         });
       }
 
       if (!filePath.toLowerCase().endsWith(".xlsx")) {
         throw new TRPCError({
           code: "BAD_REQUEST",
-          message: "Apenas arquivos .xlsx são suportados",
+          message: "Apenas arquivos .xlsx são suportados.",
         });
       }
 
       const generator = new CardGenerator();
+
       activeGenerators.set(sessionId, generator);
 
       try {
@@ -43,7 +45,10 @@ export const cardRouter = router({
           ctx.io?.to(sessionId).emit("progress", progress);
         });
 
-        const result = await generator.generateCards(filePath, originalFileName);
+        const result = await generator.generateCards(
+          filePath,
+          originalFileName
+        );
 
         return {
           success: true,
@@ -56,22 +61,34 @@ export const cardRouter = router({
           processedRows: result.processedRows,
         };
       } catch (error) {
-        const message = error instanceof Error ? error.message : "Erro ao processar cards";
+        const message =
+          error instanceof Error
+            ? error.message
+            : "Erro ao processar a planilha.";
+
+        console.error("====================================");
+        console.error("ERRO NO PROCESSAMENTO DO JORNAL");
+        console.error(message);
+        console.error(error);
+        console.error("====================================");
 
         ctx.io?.to(sessionId).emit("progress", {
           processed: 0,
           total: 0,
           percentage: 100,
-          currentCard: "Erro ao processar cards",
+          currentCard: "Erro na planilha",
           stage: "erro",
           detail: message,
           updatedAt: new Date().toISOString(),
         });
 
-        ctx.io?.to(sessionId).emit("error", message);
+        ctx.io?.to(sessionId).emit("error", {
+          success: false,
+          message,
+        });
 
         throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
+          code: "BAD_REQUEST",
           message,
         });
       } finally {
@@ -95,14 +112,14 @@ export const cardRouter = router({
       if (!resolvedPath.startsWith(outputDir)) {
         throw new TRPCError({
           code: "FORBIDDEN",
-          message: "Acesso negado",
+          message: "Acesso negado.",
         });
       }
 
       if (!fs.existsSync(resolvedPath)) {
         throw new TRPCError({
           code: "NOT_FOUND",
-          message: "Arquivo não encontrado",
+          message: "Arquivo não encontrado.",
         });
       }
 
@@ -112,3 +129,4 @@ export const cardRouter = router({
       };
     }),
 });
+```
