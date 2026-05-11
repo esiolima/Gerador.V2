@@ -219,21 +219,21 @@ export class CardGenerator extends EventEmitter {
       h.toLowerCase().trim()
     );
 
-    const requiredHeaders = ["ordem", "tipo"]; [cite: 3]
+    const requiredHeaders = ["ordem", "tipo"];
     const missingHeaders = requiredHeaders.filter(
       (header) => !headers.includes(header)
     );
 
-    if (missingHeaders.length) { [cite: 4]
+    if (missingHeaders.length) { 
       throw new Error(
         `Colunas obrigatórias ausentes: ${missingHeaders.join(", ")}.`
       );
     }
 
-    const errors: string[] = []; [cite: 5]
+    const errors: string[] = [];
     const usedOrders = new Set<string>();
 
-    rows.forEach((row, index) => { [cite: 6]
+    rows.forEach((row, index) => { 
       const line = index + 2;
 
       const ordem = String(row.ordem ?? "").trim();
@@ -249,7 +249,7 @@ export class CardGenerator extends EventEmitter {
         .trim()
         .toLowerCase();
 
-      if (!ordem) { [cite: 7]
+      if (!ordem) { 
         errors.push(`Linha ${line}: campo ORDEM vazio.`);
       } else {
         if (usedOrders.has(ordem)) {
@@ -264,11 +264,11 @@ export class CardGenerator extends EventEmitter {
       }
 
       if (!tipoOriginal) {
-        errors.push(`Linha ${line}: coluna TIPO vazia.`); [cite: 8]
+        errors.push(`Linha ${line}: coluna TIPO vazia.`); 
         return;
       }
 
-      if (!tipo || !VALID_TYPES.includes(tipo)) { [cite: 9]
+      if (!tipo || !VALID_TYPES.includes(tipo)) {
         errors.push(
           `Linha ${line}: tipo "${tipoOriginal}" não reconhecido.`
         );
@@ -277,25 +277,25 @@ export class CardGenerator extends EventEmitter {
 
       if (
         selo &&
-        !["nova", "novo", "renovada", "renovado"].includes(selo) [cite: 10]
+        !["nova", "novo", "renovada", "renovado"].includes(selo) 
       ) {
         errors.push(
           `Linha ${line}: selo inválido. Use nova, novo, renovada ou renovado.`
         );
       }
 
-      if (tipo === "nada") { [cite: 11]
+      if (tipo === "nada") { 
         return;
       }
 
       if (tipo === "soma") {
-        if (!valor) { [cite: 12]
+        if (!valor) { 
           errors.push(
             `Linha ${line}: template SOMA exige o campo VALOR.`
           );
         }
 
-        if (!complemento) { [cite: 13]
+        if (!complemento) {
           errors.push(
             `Linha ${line}: template SOMA exige o campo COMPLEMENTO.`
           );
@@ -304,20 +304,20 @@ export class CardGenerator extends EventEmitter {
         return;
       }
 
-      if (!logo) { [cite: 14]
+      if (!logo) { 
         errors.push(
           `Linha ${line}: campo LOGO não pode ficar vazio.`
         );
       }
 
-      if (tipo === "cupom" && !cupom) { [cite: 15]
+      if (tipo === "cupom" && !cupom) {
         errors.push(
           `Linha ${line}: template CUPOM exige o campo CUPOM preenchido.`
         );
       }
 
       if (tipo === "promocao") {
-        if (!valor) { [cite: 16]
+        if (!valor) { 
           errors.push(
             `Linha ${line}: template PROMOCAO exige o campo VALOR.`
           );
@@ -327,19 +327,19 @@ export class CardGenerator extends EventEmitter {
       }
 
       if (["queda", "bc", "cashback"].includes(tipo)) {
-        if (!valor) { [cite: 17]
+        if (!valor) { 
           errors.push(
             `Linha ${line}: template ${tipo.toUpperCase()} exige o campo VALOR.`
           );
         } else {
-          const normalizedValue = valor [cite: 18]
+          const normalizedValue = valor
             .replace(/%/g, "")
             .replace(/\./g, ",")
             .trim();
 
           const numericValidation = normalizedValue.replace(/,/g, ".");
 
-          if (isNaN(Number(numericValidation))) { [cite: 19]
+          if (isNaN(Number(numericValidation))) {
             errors.push(
               `Linha ${line}: template ${tipo.toUpperCase()} aceita apenas números no VALOR.`
             );
@@ -350,7 +350,7 @@ export class CardGenerator extends EventEmitter {
       }
     });
 
-    if (errors.length > 0) { [cite: 20]
+    if (errors.length > 0) {
       throw new Error(errors.join("\n"));
     }
   }
