@@ -52,6 +52,11 @@ type JournalCardPage = {
   cards: GeneratedCard[];
   pageIndexWithinCategory: number;
   isContinuation: boolean;
+  // Adicionado para suportar múltiplas categorias na mesma página
+  additionalCategories?: {
+    category: string;
+    cards: GeneratedCard[];
+  }[];
 };
 
 type CategoryBarImages = Record<string, { left?: string; right?: string }>;
@@ -73,47 +78,72 @@ function getReadableTextColor(backgroundColor: string) {
   return luminance > 0.58 ? "#111111" : "#ffffff";
 }
 
+/**
+ * Nova lógica de construção de páginas:
+ * Se a categoria for "NADA", ela não força quebra de página ao terminar.
+ * A próxima categoria pode começar na mesma página se houver espaço.
+ */
 function buildJournalCardPages(groupedCards: [string, GeneratedCard[]][]): JournalCardPage[] {
   const pages: JournalCardPage[] = [];
-  
-  // Pegamos a primeira categoria e os cards dela
-  const firstCategoryEntry = groupedCards[0];
-  if (!firstCategoryEntry) return pages;
+  let currentGroupIdx = 0;
 
-  const [firstCatName, firstCatCards] = firstCategoryEntry;
+  while (currentGroupIdx < groupedCards.length) {
+    const [category, cards] = groupedCards[currentGroupIdx];
+    let remainingCards = [...cards];
+    let pageIdxWithinCategory = 0;
 
-  // REGRA ESPECIAL: Se a primeira for "NADA", ela ocupa os 6 primeiros espaços do cabeçalho
-  if (firstCatName.toUpperCase() === "NADA") {
-    pages.push({
-      category: "NADA",
-      cards: firstCatCards.slice(0, FIRST_CATEGORY_PAGE_CARD_LIMIT),
-      pageIndexWithinCategory: 0,
-      isContinuation: false,
-    });
-    
-    // Processamos o restante das categorias normalmente a partir do índice 1
-    groupedCards.slice(1).forEach(([category, cards]) => {
-      let remaining = [...cards];
-      let pageIdx = 0;
-      while (remaining.length > 0) {
-        const limit = pageIdx === 0 ? FIRST_CATEGORY_PAGE_CARD_LIMIT : CONTINUATION_CATEGORY_PAGE_CARD_LIMIT;
-        pages.push({ category, cards: remaining.slice(0, limit), pageIndexWithinCategory: pageIdx, isContinuation: pageIdx > 0 });
-        remaining = remaining.slice(limit);
-        pageIdx++;
+    while (remainingCards.length > 0) {
+      const isFirstPage = pageIdxWithinCategory === 0;
+      const limit = isFirstPage ? FIRST_CATEGORY_PAGE_CARD_LIMIT : CONTINUATION_CATEGORY_PAGE_CARD_LIMIT;
+      
+      const pageCards = remainingCards.slice(0, limit);
+      remainingCards = remainingCards.slice(limit);
+
+      const newPage: JournalCardPage = {
+        category,
+        cards: pageCards,
+        pageIndexWithinCategory,
+        isContinuation: pageIdxWithinCategory > 0,
+        additionalCategories: []
+      };
+
+      // LÓGICA ESPECIAL PARA "NADA":
+      // Se for a categoria "NADA" e for a última página desta categoria, 
+      // e ainda houver espaço na página, tentamos puxar a próxima categoria.
+      if (category.toUpperCase() === "NADA" && remainingCards.length === 0 && pageCards.length < limit) {
+        let spaceLeft = limit - pageCards.length;
+        
+        // Tenta preencher o espaço restante com as próximas categorias
+        while (spaceLeft > 0 && currentGroupIdx + 1 < groupedCards.length) {
+          currentGroupIdx++;
+          const [nextCat, nextCards] = groupedCards[currentGroupIdx];
+          
+          const cardsToTake = nextCards.slice(0, spaceLeft);
+          const leftover = nextCards.slice(spaceLeft);
+
+          newPage.additionalCategories?.push({
+            category: nextCat,
+            cards: cardsToTake
+          });
+
+          spaceLeft -= cardsToTake.length;
+
+          // Se a próxima categoria também coube inteira e não queremos que ela quebre página (caso fosse "NADA" também, por exemplo)
+          // Mas pela regra, apenas o "NADA" permite essa junção. 
+          // Se a categoria que puxamos sobrou cards, ela continuará na próxima página normalmente.
+          if (leftover.length > 0) {
+            // Recriamos a entrada da categoria atual com o que sobrou para o próximo loop externo processar
+            groupedCards[currentGroupIdx] = [nextCat, leftover];
+            currentGroupIdx--; // Decrementa para que o loop externo processe o que sobrou
+            break;
+          }
+        }
       }
-    });
-  } else {
-    // Se não começar com "NADA", mantém a lógica original para todas
-    groupedCards.forEach(([category, cards]) => {
-      let remaining = [...cards];
-      let pageIdx = 0;
-      while (remaining.length > 0) {
-        const limit = pageIdx === 0 ? FIRST_CATEGORY_PAGE_CARD_LIMIT : CONTINUATION_CATEGORY_PAGE_CARD_LIMIT;
-        pages.push({ category, cards: remaining.slice(0, limit), pageIndexWithinCategory: pageIdx, isContinuation: pageIdx > 0 });
-        remaining = remaining.slice(limit);
-        pageIdx++;
-      }
-    });
+
+      pages.push(newPage);
+      pageIdxWithinCategory++;
+    }
+    currentGroupIdx++;
   }
 
   return pages;
@@ -353,152 +383,97 @@ function serializeElementForPdf(element: HTMLElement) {
 }
 
 function buildJournalPagesForPdf(journalElement: HTMLDivElement): JournalPagePayload[] {
-  const pageElements = Array.from(
-    journalElement.querySelectorAll("[data-journal-page]")
+  const pages: JournalPagePayload[] = [];
+  const coverPage = journalElement.querySelector('[data-journal-page="cover"]') as HTMLElement;
+  if (coverPage) {
+    pages.push({
+      type: "cover",
+      title: "Capa",
+      html: serializeElementForPdf(coverPage),
+    });
+  }
+
+  const categoryPages = Array.from(
+    journalElement.querySelectorAll('[data-journal-page="category"]')
   ) as HTMLElement[];
 
-  return pageElements.map((pageElement, index) => {
-    const rawType = pageElement.getAttribute("data-journal-page") || "category";
-    const type = rawType === "cover" || rawType === "ad" ? rawType : "category";
-    const title =
-      pageElement.getAttribute("data-journal-title") ||
-      (type === "cover" ? "Capa" : type === "ad" ? "Anúncio" : `Categoria ${index}`);
-
-    return {
-      type,
-      title,
-      html: serializeElementForPdf(pageElement),
-    };
+  categoryPages.forEach((page) => {
+    pages.push({
+      type: "category",
+      title: page.getAttribute("data-journal-title") || "Categoria",
+      html: serializeElementForPdf(page),
+    });
   });
+
+  return pages;
 }
 
-const PAGE_BACKGROUND_STORAGE_KEY = "jornal_page_background";
-const CATEGORY_BACKGROUNDS_STORAGE_KEY = "jornal_category_backgrounds";
-const CATEGORY_BAR_COLORS_STORAGE_KEY = "jornal_category_bar_colors";
-const CATEGORY_BAR_IMAGES_STORAGE_KEY = "jornal_category_bar_images";
-const DEFAULT_JOURNAL_BACKGROUND = "#ffffff";
-const DEFAULT_CATEGORY_BAR_COLOR = "#0f6bc8";
+const CATEGORY_BACKGROUNDS_STORAGE_KEY = "journal_category_backgrounds";
+const CATEGORY_BAR_COLORS_STORAGE_KEY = "journal_category_bar_colors";
+const CATEGORY_BAR_IMAGES_STORAGE_KEY = "journal_category_bar_images";
 
-export default function CardGenerator() {
+export default function CardProcessor() {
+  const [, setLocation] = useLocation();
   const [file, setFile] = useState<File | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState<ProgressData | null>(null);
-  const [result, setResult] = useState<ProcessResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [result, setResult] = useState<ProcessResult | null>(null);
+  const [sessionId] = useState(() => Math.random().toString(36).slice(2, 12));
+  const socketRef = useRef<Socket | null>(null);
 
-  const [sessionId] = useState(
-    () => `session_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`
-  );
-
-  const [isDragging, setIsDragging] = useState(false);
   const [showJournal, setShowJournal] = useState(false);
+  const [journalZoom, setJournalZoom] = useState(50);
+  const [isGeneratingJournal, setIsGeneratingJournal] = useState(false);
+  const journalRef = useRef<HTMLDivElement>(null);
 
-  const [coverImage, setCoverImage] = useState<string>("/assets/capa.png");
-  const [headerImage, setHeaderImage] = useState<string>("/assets/header.png");
-  const [adImage, setAdImage] = useState<string>("/assets/anuncio.png");
+  const [coverImage, setCoverImage] = useState("https://placehold.co/1080x1920/0b2341/ffffff?text=Capa+do+Jornal");
+  const [headerImage, setHeaderImage] = useState("https://placehold.co/1080x260/0b2341/ffffff?text=Cabeçalho");
+  const coverInputRef = useRef<HTMLInputElement>(null);
+  const headerInputRef = useRef<HTMLInputElement>(null);
+
   const [categoryBackgrounds, setCategoryBackgrounds] = useState<Record<string, string>>(() => {
-    if (typeof window === "undefined") return { __default: DEFAULT_JOURNAL_BACKGROUND };
-
-    const previousGlobalBackground =
-      window.localStorage.getItem(PAGE_BACKGROUND_STORAGE_KEY) || DEFAULT_JOURNAL_BACKGROUND;
-
-    try {
-      const saved = window.localStorage.getItem(CATEGORY_BACKGROUNDS_STORAGE_KEY);
-      if (!saved) return { __default: previousGlobalBackground };
-
-      const parsed = JSON.parse(saved) as Record<string, string>;
-      return { __default: previousGlobalBackground, ...parsed };
-    } catch {
-      return { __default: previousGlobalBackground };
-    }
+    const saved = window.localStorage.getItem(CATEGORY_BACKGROUNDS_STORAGE_KEY);
+    return saved ? JSON.parse(saved) : {};
   });
 
   const [categoryBarColors, setCategoryBarColors] = useState<Record<string, string>>(() => {
-    if (typeof window === "undefined") return {};
-
-    try {
-      const saved = window.localStorage.getItem(CATEGORY_BAR_COLORS_STORAGE_KEY);
-      return saved ? (JSON.parse(saved) as Record<string, string>) : {};
-    } catch {
-      return {};
-    }
+    const saved = window.localStorage.getItem(CATEGORY_BAR_COLORS_STORAGE_KEY);
+    return saved ? JSON.parse(saved) : {};
   });
 
   const [categoryBarImages, setCategoryBarImages] = useState<CategoryBarImages>(() => {
-    if (typeof window === "undefined") return {};
-
-    try {
-      const saved = window.localStorage.getItem(CATEGORY_BAR_IMAGES_STORAGE_KEY);
-      return saved ? (JSON.parse(saved) as CategoryBarImages) : {};
-    } catch {
-      return {};
-    }
+    const saved = window.localStorage.getItem(CATEGORY_BAR_IMAGES_STORAGE_KEY);
+    return saved ? JSON.parse(saved) : {};
   });
 
-  const [journalZoom, setJournalZoom] = useState<number>(50);
+  const generateCardsMutation = trpc.cards.generate.useMutation();
+  const generateJournalMutation = trpc.cards.generateJournal.useMutation();
 
-  const [footerText, setFooterText] = useState(
-    "Ofertas válidas enquanto durarem os estoques. Consulte condições, disponibilidade e regulamento nos canais oficiais."
-  );
+  const groupedCards = useMemo(() => {
+    if (!result?.cards) return [];
+    return groupByCategory(result.cards);
+  }, [result]);
 
-  const [isGeneratingJournal, setIsGeneratingJournal] = useState(false);
-  const [journalProgress, setJournalProgress] = useState({ step: 0, message: "" });
-  const [journalError, setJournalError] = useState<string | null>(null);
-  const [journalDownloadUrl, setJournalDownloadUrl] = useState<string | null>(null);
-  const [journalDownloadFileName, setJournalDownloadFileName] = useState<string>("jornal-diagramado.pdf");
+  const journalCardPages = useMemo(() => {
+    return buildJournalCardPages(groupedCards);
+  }, [groupedCards]);
 
-  const socketRef = useRef<Socket | null>(null);
-  const journalRef = useRef<HTMLDivElement>(null);
-
-  const coverInputRef = useRef<HTMLInputElement>(null);
-  const headerInputRef = useRef<HTMLInputElement>(null);
-  const adInputRef = useRef<HTMLInputElement>(null);
-
-  const [, setLocation] = useLocation();
-
-  const generateCardsMutation = trpc.card.generateCards.useMutation();
-  const groupedCards = useMemo(() => groupByCategory(result?.cards ?? []), [result]);
-  const journalCardPages = useMemo(
-    () => buildJournalCardPages(groupedCards),
-    [groupedCards]
-  );
-  const getCategoryBackground = (category: string) =>
-    categoryBackgrounds[category] || categoryBackgrounds.__default || DEFAULT_JOURNAL_BACKGROUND;
+  const getCategoryBackground = (category: string) => categoryBackgrounds[category] || "#ffffff";
+  const getCategoryBarColor = (category: string) => categoryBarColors[category] || "#0f6bc8";
+  const getCategoryBarImage = (category: string, side: "left" | "right") => categoryBarImages[category]?.[side];
 
   const updateCategoryBackground = (category: string, color: string) => {
-    setCategoryBackgrounds((current) => ({
-      ...current,
-      [category]: color,
-    }));
+    setCategoryBackgrounds((current) => ({ ...current, [category]: color }));
   };
-
-  const getCategoryBarColor = (category: string) =>
-    categoryBarColors[category] || DEFAULT_CATEGORY_BAR_COLOR;
 
   const updateCategoryBarColor = (category: string, color: string) => {
-    setCategoryBarColors((current) => ({
-      ...current,
-      [category]: color,
-    }));
+    setCategoryBarColors((current) => ({ ...current, [category]: color }));
   };
 
-  const getCategoryBarImage = (category: string, side: "left" | "right") =>
-    categoryBarImages[category]?.[side] || "";
-
-  const updateCategoryBarImage = async (
-    category: string,
-    side: "left" | "right",
-    selectedFile?: File | null
-  ) => {
-    if (!selectedFile) return;
-
-    if (!selectedFile.type.startsWith("image/")) {
-      window.alert("Envie apenas arquivos de imagem.");
-      return;
-    }
-
-    const dataUrl = await readImageAsDataUrl(selectedFile);
-
+  const updateCategoryBarImage = async (category: string, side: "left" | "right", file?: File) => {
+    if (!file) return;
+    const dataUrl = await readImageAsDataUrl(file);
     setCategoryBarImages((current) => ({
       ...current,
       [category]: {
@@ -527,24 +502,14 @@ export default function CardGenerator() {
   };
 
   const errorLines = useMemo(() => {
-  if (!error) return [];
-
-  const safeError =
-    typeof error === "string"
-      ? error
-      : JSON.stringify(error, null, 2);
-
-  return safeError
-    .split(/\n+/)
-    .map((line) => line.trim())
-    .filter(Boolean);
+    if (!error) return [];
+    const safeError = typeof error === "string" ? error : JSON.stringify(error, null, 2);
+    return safeError.split(/\n+/).map((line) => line.trim()).filter(Boolean);
   }, [error]);
 
   const isSpreadsheetValidationError = useMemo(() => {
     if (!error) return false;
-
     const normalizedError = error.toLowerCase();
-
     return (
       errorLines.length > 1 ||
       normalizedError.includes("linha ") ||
@@ -564,53 +529,36 @@ export default function CardGenerator() {
     });
 
     socket.on("connect", () => socket.emit("join", sessionId));
-
-    socket.on("progress", (data: ProgressData) => {
-      setProgress(data);
-    });
-
+    socket.on("progress", (data: ProgressData) => setProgress(data));
     socket.on("error", (message: string) => {
       setError(message);
       setIsProcessing(false);
     });
 
     socketRef.current = socket;
-
     return () => {
       socket.disconnect();
     };
   }, [sessionId]);
 
   useEffect(() => {
-    window.localStorage.setItem(
-      CATEGORY_BACKGROUNDS_STORAGE_KEY,
-      JSON.stringify(categoryBackgrounds)
-    );
+    window.localStorage.setItem(CATEGORY_BACKGROUNDS_STORAGE_KEY, JSON.stringify(categoryBackgrounds));
   }, [categoryBackgrounds]);
 
   useEffect(() => {
-    window.localStorage.setItem(
-      CATEGORY_BAR_COLORS_STORAGE_KEY,
-      JSON.stringify(categoryBarColors)
-    );
+    window.localStorage.setItem(CATEGORY_BAR_COLORS_STORAGE_KEY, JSON.stringify(categoryBarColors));
   }, [categoryBarColors]);
 
   useEffect(() => {
-    window.localStorage.setItem(
-      CATEGORY_BAR_IMAGES_STORAGE_KEY,
-      JSON.stringify(categoryBarImages)
-    );
+    window.localStorage.setItem(CATEGORY_BAR_IMAGES_STORAGE_KEY, JSON.stringify(categoryBarImages));
   }, [categoryBarImages]);
 
   const handleFileSelect = (selectedFile: File | null | undefined) => {
     if (!selectedFile) return;
-
     if (!selectedFile.name.toLowerCase().endsWith(".xlsx")) {
-      const message = "Arquivo inválido: envie uma planilha no formato .xlsx.";
-      setError(message);
+      setError("Arquivo inválido: envie uma planilha no formato .xlsx.");
       return;
     }
-
     setFile(selectedFile);
     setError(null);
     setResult(null);
@@ -619,30 +567,18 @@ export default function CardGenerator() {
 
   const handleUpload = async () => {
     if (!file) return;
-
     setIsProcessing(true);
-    setProgress({
-      total: 0,
-      processed: 0,
-      percentage: 0,
-      currentCard: "Preparando upload...",
-    });
+    setProgress({ total: 0, processed: 0, percentage: 0, currentCard: "Preparando upload..." });
     setError(null);
 
     try {
       const formData = new FormData();
       formData.append("file", file);
 
-      const uploadResponse = await fetch("/api/upload", {
-        method: "POST",
-        body: formData,
-      });
-
+      const uploadResponse = await fetch("/api/upload", { method: "POST", body: formData });
       const uploadJson = await uploadResponse.json();
 
-      if (!uploadResponse.ok) {
-        throw new Error(uploadJson.error || "Erro ao enviar arquivo.");
-      }
+      if (!uploadResponse.ok) throw new Error(uploadJson.error || "Erro ao enviar arquivo.");
 
       const data = await generateCardsMutation.mutateAsync({
         filePath: uploadJson.filePath,
@@ -651,153 +587,35 @@ export default function CardGenerator() {
       });
 
       setResult(data as ProcessResult);
-
-      setProgress({
-        total: data.totalRows,
-        processed: data.processedRows,
-        percentage: 100,
-        currentCard: "Finalizado",
-      });
+      setProgress({ total: data.totalRows, processed: data.processedRows, percentage: 100, currentCard: "Finalizado" });
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Erro ao processar a planilha.";
-      setError(message);
+      setError(err instanceof Error ? err.message : "Erro ao processar a planilha.");
     } finally {
       setIsProcessing(false);
     }
   };
 
-  const changeImage = async (
-    kind: "cover" | "header" | "ad",
-    selectedFile?: File | null
-  ) => {
-    if (!selectedFile) return;
-
-    if (!selectedFile.type.startsWith("image/")) {
-      window.alert("Envie apenas arquivos de imagem.");
-      return;
-    }
-
-    const dataUrl = await readImageAsDataUrl(selectedFile);
-
+  const changeImage = async (kind: "cover" | "header", file?: File) => {
+    if (!file) return;
+    const dataUrl = await readImageAsDataUrl(file);
     if (kind === "cover") setCoverImage(dataUrl);
-    if (kind === "header") setHeaderImage(dataUrl);
-    if (kind === "ad") setAdImage(dataUrl);
+    else setHeaderImage(dataUrl);
   };
 
   const generateJournalPdf = async () => {
-    if (!journalRef.current || !result) return;
-
+    if (!journalRef.current) return;
     setIsGeneratingJournal(true);
-    setJournalError(null);
-    setJournalDownloadUrl(null);
-    setJournalDownloadFileName("jornal-diagramado.pdf");
-    setJournalProgress({ step: 5, message: "Iniciando geração do jornal diagramado..." });
-
-    const controller = new AbortController();
-    const timeoutId = window.setTimeout(() => {
-      controller.abort();
-    }, 240000);
-
-    let fakeProgressTimer: number | null = null;
-
     try {
-      await new Promise((resolve) => window.setTimeout(resolve, 150));
-
-      setJournalProgress({ step: 15, message: "Separando capa, categorias e anúncio..." });
       const pages = buildJournalPagesForPdf(journalRef.current);
-
-      if (!pages.length) {
-        throw new Error("Nenhuma página do jornal foi encontrada para gerar o PDF.");
-      }
-
-      setJournalProgress({
-        step: 30,
-        message: `Preparando ${pages.length} páginas independentes...`,
+      const { downloadUrl } = await generateJournalMutation.mutateAsync({
+        jobId: result?.jobId || "manual",
+        pages,
       });
-
-      fakeProgressTimer = window.setInterval(() => {
-        setJournalProgress((current) => {
-          if (current.step >= 92) {
-            return {
-              step: current.step,
-              message: "Servidor ainda renderizando e juntando os PDFs. Aguarde...",
-            };
-          }
-
-          const nextStep = Math.min(current.step + 3, 92);
-
-          let message = "Renderizando capa, categorias e anúncio...";
-
-          if (nextStep >= 55) {
-            message = "Gerando um PDF para cada página...";
-          }
-
-          if (nextStep >= 75) {
-            message = "Juntando os PDFs em um único arquivo...";
-          }
-
-          if (nextStep >= 88) {
-            message = "Finalizando arquivo para download...";
-          }
-
-          return {
-            step: nextStep,
-            message,
-          };
-        });
-      }, 2500);
-
-      const response = await fetch("/api/journal/pdf", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          pages,
-          jobId: result?.jobId,
-          fileName: result?.fileName,
-        }),
-        signal: controller.signal,
-      });
-
-      if (fakeProgressTimer) {
-        window.clearInterval(fakeProgressTimer);
-        fakeProgressTimer = null;
-      }
-
-      setJournalProgress({ step: 96, message: "Recebendo resposta do servidor..." });
-
-      const json = await response.json().catch(() => null);
-
-      if (!response.ok) {
-        throw new Error(json?.error || "Erro ao gerar PDF do jornal.");
-      }
-
-      if (!json?.pdfPath && !json?.downloadUrl) {
-        throw new Error("PDF gerado, mas o servidor não retornou o link de download.");
-      }
-
-      const downloadUrl =
-        json.downloadUrl || `/api/journal/download?pdfPath=${encodeURIComponent(json.pdfPath)}`;
-
-      setJournalDownloadUrl(downloadUrl);
-      setJournalDownloadFileName(json.fileName || "jornal-diagramado.pdf");
-      setJournalProgress({ step: 100, message: "PDF pronto para download." });
+      window.open(downloadUrl, "_blank");
     } catch (err) {
-      if (fakeProgressTimer) {
-        window.clearInterval(fakeProgressTimer);
-      }
-
-      const message =
-        err instanceof DOMException && err.name === "AbortError"
-          ? "A geração do PDF demorou demais e foi interrompida. Tente novamente com imagens mais leves."
-          : err instanceof Error
-            ? err.message
-            : "Erro ao gerar PDF do jornal.";
-
-      console.error("[generateJournalPdf]", err);
-      setJournalError(message);
-      setJournalProgress({ step: 100, message: "Falha ao gerar PDF do jornal." });
+      window.alert("Erro ao gerar o PDF do jornal.");
     } finally {
-      window.clearTimeout(timeoutId);
+      setIsGeneratingJournal(false);
     }
   };
 
@@ -805,1069 +623,506 @@ export default function CardGenerator() {
     setFile(null);
     setResult(null);
     setProgress(null);
-    setShowJournal(false);
     setError(null);
-    setIsProcessing(false);
-    setIsGeneratingJournal(false);
-    setJournalError(null);
-    setJournalDownloadUrl(null);
-    setJournalDownloadFileName("jornal-diagramado.pdf");
+    setShowJournal(false);
   };
 
   return (
-    <div className="relative min-h-screen overflow-x-hidden bg-[#06111f] font-sans text-white">
-      <div
-        className="fixed inset-0 z-0 pointer-events-none"
-        style={{
-          background:
-            "radial-gradient(ellipse 55% 45% at 8% 95%, rgba(37,99,235,0.34), transparent 65%), radial-gradient(ellipse 50% 60% at 95% 0%, rgba(14,165,233,0.30), transparent 62%), linear-gradient(180deg,#06111f 0%,#071827 100%)",
-        }}
-      />
-
-      <main className="relative z-10 mx-auto max-w-7xl space-y-10 px-6 py-16">
-        <section className="grid items-center gap-8 lg:grid-cols-[1fr_420px]">
-          <div className="space-y-6">
-            <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-white/60 backdrop-blur">
-              <span className="h-2 w-2 rounded-full bg-sky-400" />
-              Transforme Ações em Resultado
-            </div>
-
-            <h1 className="text-5xl font-black leading-[0.95] tracking-tight md:text-7xl">
-              Sua planilha vira{" "}
-              <span className="bg-gradient-to-r from-sky-300 to-blue-500 bg-clip-text text-transparent">
-                argumento de venda
-              </span>{" "}
-              para divulgação.
-            </h1>
-
-            <p className="max-w-2xl text-lg text-white/55">
-              Gere um jornal de ofertas profissional de trade, pensado para a força de vendas B2B com categorias organizadas, ofertas claras e layout pronto para negociação.
-            </p>
+    <main className="min-h-screen bg-slate-950 px-4 py-12 font-sans text-slate-50 antialiased selection:bg-blue-500/30">
+      <div className="mx-auto max-w-5xl">
+        <header className="mb-12 text-center">
+          <div className="mb-4 inline-flex items-center justify-center rounded-2xl bg-blue-600/10 p-3 text-blue-500 ring-1 ring-blue-500/20">
+            <ImageIcon className="h-8 w-8" />
           </div>
+          <h1 className="text-4xl font-black tracking-tight text-white sm:text-5xl">
+            Gerador de <span className="text-blue-500">Cards</span>
+          </h1>
+          <p className="mt-4 text-lg font-medium text-slate-400">
+            Transforme sua planilha Excel em cartões promocionais e jornais diagramados.
+          </p>
+        </header>
 
-          <div className="rounded-[2rem] border border-white/10 bg-white/[0.06] p-6 shadow-2xl backdrop-blur-xl">
-            {!result && (
-              <div className="space-y-5">
+        <section className="relative overflow-hidden rounded-3xl border border-white/10 bg-white/5 p-8 backdrop-blur-xl sm:p-12">
+          <div className="absolute -left-24 -top-24 h-64 w-64 rounded-full bg-blue-600/10 blur-3xl" />
+          <div className="absolute -right-24 -bottom-24 h-64 w-64 rounded-full bg-blue-600/10 blur-3xl" />
+
+          <div className="relative mx-auto max-w-xl">
+            {!result && !isProcessing && (
+              <div className="space-y-8">
                 <div
-                  onClick={() => document.getElementById("file-input")?.click()}
-                  onDragOver={(event) => {
-                    event.preventDefault();
-                    setIsDragging(true);
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    handleFileSelect(e.dataTransfer.files[0]);
                   }}
-                  onDragLeave={(event) => {
-                    event.preventDefault();
-                    setIsDragging(false);
-                  }}
-                  onDrop={(event) => {
-                    event.preventDefault();
-                    setIsDragging(false);
-                    handleFileSelect(event.dataTransfer.files[0]);
-                  }}
-                  className={`group cursor-pointer rounded-[1.5rem] border-2 border-dashed p-10 text-center transition ${
-                    isDragging
-                      ? "border-sky-400 bg-sky-400/10"
-                      : "border-white/15 bg-black/20 hover:border-sky-400/60"
+                  className={`group relative flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed p-12 transition-all hover:bg-white/5 ${
+                    file ? "border-blue-500 bg-blue-500/5" : "border-white/20 hover:border-white/40"
                   }`}
+                  onClick={() => document.getElementById("file-input")?.click()}
                 >
-                  <Upload className="mx-auto mb-4 h-12 w-12 text-sky-400" />
-                  <p className="text-xl font-bold">Arraste ou selecione o Excel</p>
-                  <p className="mt-2 text-sm text-white/40">
-                    A planilha será validada antes da geração dos cards.
-                  </p>
-
                   <input
                     id="file-input"
                     type="file"
-                    accept=".xlsx"
-                    onChange={(event) => handleFileSelect(event.target.files?.[0])}
                     className="hidden"
+                    accept=".xlsx"
+                    onChange={(e) => handleFileSelect(e.target.files?.[0])}
                   />
+                  <div className={`mb-4 rounded-full p-4 transition-transform group-hover:scale-110 ${
+                    file ? "bg-blue-500 text-white" : "bg-white/10 text-white/60"
+                  }`}>
+                    <Upload className="h-8 w-8" />
+                  </div>
+                  <h3 className="text-xl font-bold text-white">
+                    {file ? file.name : "Arraste sua planilha"}
+                  </h3>
+                  <p className="mt-2 text-sm font-medium text-slate-400">
+                    Clique para selecionar ou arraste um arquivo .xlsx
+                  </p>
                 </div>
 
-                {file && (
-                  <div className="rounded-xl border border-white/10 bg-white/5 p-4 text-sm text-white/80">
-                    <CheckCircle2 className="mr-2 inline h-4 w-4 text-sky-400" />
-                    {file.name}
-                  </div>
-                )}
-
-                {error && (
-                  <div className="rounded-2xl border border-red-400/30 bg-red-500/10 p-5 text-left shadow-lg shadow-red-950/10">
-                    <div className="flex items-start gap-3">
-                      <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-red-500/15 text-red-200">
-                        <AlertCircle className="h-5 w-5" />
-                      </div>
-
-                      <div className="min-w-0 flex-1">
-                        <h3 className="text-sm font-black uppercase tracking-wide text-red-100">
-                          {isSpreadsheetValidationError
-                            ? "A planilha precisa de ajustes"
-                            : "Não foi possível processar"}
-                        </h3>
-
-                        {errorLines.length > 1 ? (
-                          <div className="mt-3 max-h-52 space-y-2 overflow-auto pr-2">
-                            {errorLines.map((line, index) => (
-                              <div
-                                key={`${line}-${index}`}
-                                className="rounded-xl border border-red-300/10 bg-black/15 px-3 py-2 text-sm leading-relaxed text-red-100/90"
-                              >
-                                {line}
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-red-100/90">
-                            {error}
-                          </p>
-                        )}
-
-                        {isSpreadsheetValidationError && (
-                          <p className="mt-3 text-xs leading-relaxed text-red-100/55">
-                            Corrija os pontos acima na planilha e envie o arquivo novamente.
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                <div className="flex gap-3">
-                  <Button
-                    disabled={!file || isProcessing}
-                    onClick={handleUpload}
-                    className="h-13 flex-1 rounded-xl bg-blue-600 text-base font-bold hover:bg-blue-700 disabled:opacity-40"
-                  >
-                    {isProcessing ? "Processando..." : "Processar planilha"}
-                  </Button>
-
-                  <Button
-                    onClick={() => setLocation("/logos")}
-                    className="h-13 rounded-xl border border-white/10 bg-white/10 px-5 hover:bg-white/15"
-                  >
-                    <ImageIcon className="h-5 w-5" />
-                  </Button>
-                </div>
+                <Button
+                  disabled={!file}
+                  onClick={handleUpload}
+                  className="h-14 w-full rounded-2xl bg-blue-600 text-lg font-bold shadow-lg shadow-blue-600/20 transition-all hover:bg-blue-700 hover:shadow-blue-600/40 disabled:opacity-50"
+                >
+                  Processar Planilha
+                </Button>
               </div>
             )}
 
             {isProcessing && progress && (
-              <div className="space-y-8 py-8 text-center">
-                <div className="relative mx-auto h-16 w-16">
-                  <div className="absolute inset-0 rounded-full border border-white/10" />
-                  <div className="absolute inset-2 rounded-full border border-sky-400/40 animate-pulse" />
-                  <Hourglass className="relative z-10 mx-auto h-10 w-10 text-sky-400 animate-spin" />
-                </div>
-
-                <div>
-                  <h2 className="text-2xl font-black tracking-tight">
-                    Processando cards
-                  </h2>
-                </div>
-
-                <div className="space-y-3">
-                  <div className="h-2 w-full overflow-hidden rounded-full bg-white/10">
-                    <div
-                      className="h-full rounded-full bg-gradient-to-r from-sky-400 to-blue-500 transition-all duration-500 ease-out"
-                      style={{ width: `${progress.percentage}%` }}
+              <div className="space-y-8 py-4 text-center">
+                <div className="relative mx-auto h-32 w-32">
+                  <svg className="h-full w-full" viewBox="0 0 100 100">
+                    <circle
+                      className="text-white/10"
+                      strokeWidth="8"
+                      stroke="currentColor"
+                      fill="transparent"
+                      r="42"
+                      cx="50"
+                      cy="50"
                     />
+                    <circle
+                      className="text-blue-500 transition-all duration-500"
+                      strokeWidth="8"
+                      strokeDasharray={264}
+                      strokeDashoffset={264 - (264 * progress.percentage) / 100}
+                      strokeLinecap="round"
+                      stroke="currentColor"
+                      fill="transparent"
+                      r="42"
+                      cx="50"
+                      cy="50"
+                    />
+                  </svg>
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <span className="text-2xl font-black text-white">{progress.percentage}%</span>
                   </div>
-
-                  <div className="flex justify-between px-1 text-xs text-white/35">
-                    <span>{progress.processed}</span>
-                    <span>{progress.total || "..."}</span>
-                  </div>
+                </div>
+                <div className="space-y-2">
+                  <h3 className="text-xl font-bold text-white">{progress.currentCard}</h3>
+                  <p className="text-sm font-medium text-slate-400">
+                    Processando {progress.processed} de {progress.total} cards
+                  </p>
+                </div>
+                <div className="flex items-center justify-center space-x-2 text-blue-400">
+                  <Hourglass className="h-4 w-4 animate-spin" />
+                  <span className="text-xs font-bold uppercase tracking-widest">Aguarde um momento</span>
                 </div>
               </div>
             )}
 
-            {result && (
-              <div className="space-y-5 py-3 text-center">
-                <CheckCircle2 className="mx-auto h-14 w-14 text-teal-300" />
+            {error && (
+              <div className="space-y-6">
+                <div className="rounded-2xl border border-red-500/20 bg-red-500/10 p-6 text-center">
+                  <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-red-500/20 text-red-500">
+                    <AlertCircle className="h-6 w-6" />
+                  </div>
+                  <h3 className="mb-2 text-lg font-bold text-white">Ocorreu um erro</h3>
+                  
+                  {isSpreadsheetValidationError ? (
+                    <div className="mt-4 max-h-60 overflow-y-auto rounded-xl bg-black/40 p-4 text-left">
+                      <p className="mb-3 text-sm font-bold text-red-400">Erros encontrados na planilha:</p>
+                      <ul className="space-y-2">
+                        {errorLines.map((line, i) => (
+                          <li key={i} className="flex items-start space-x-2 text-xs leading-relaxed text-slate-300">
+                            <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-red-500/50" />
+                            <span>{line}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : (
+                    <p className="text-sm font-medium text-slate-300">{error}</p>
+                  )}
+                </div>
+                <Button variant="ghost" onClick={reset} className="w-full text-slate-400 hover:text-white">
+                  Tentar novamente
+                </Button>
+              </div>
+            )}
 
-                <div>
-                  <h2 className="text-2xl font-black">Cards prontos</h2>
-                  <p className="text-white/45">
-                    {result.processedRows} cards processados com sucesso
-                  </p>
+            {result && !isProcessing && (
+              <div className="space-y-6 py-4">
+                <div className="flex flex-col items-center justify-center space-y-4">
+                  <div className="rounded-full bg-green-500/20 p-4 text-green-500">
+                    <CheckCircle2 className="h-12 w-12" />
+                  </div>
+                  <div className="text-center">
+                    <h3 className="text-2xl font-bold text-white">Processamento Concluído!</h3>
+                    <p className="mt-1 text-slate-400">{result.totalRows} cards gerados com sucesso.</p>
+                  </div>
                 </div>
 
                 <Button
-                  onClick={() =>
-                    (window.location.href = `/api/download?zipPath=${encodeURIComponent(
-                      result.zipPath
-                    )}`)
-                  }
-                  className="h-13 w-full rounded-xl bg-teal-600 text-base font-bold hover:bg-teal-700"
+                  asChild
+                  className="h-16 w-full rounded-2xl bg-green-600 text-lg font-bold shadow-lg shadow-green-600/20 transition-all hover:bg-green-700 hover:shadow-green-600/40"
                 >
-                  <Download className="mr-2 h-5 w-5" />
-                  Baixar Cards (ZIP)
+                  <a href={`/api/download/${result.jobId}/${result.zipName}`} download>
+                    <Download className="mr-2 h-6 w-6" />
+                    Baixar Cards (ZIP)
+                  </a>
                 </Button>
 
                 <Button
                   onClick={() => setShowJournal(true)}
-                  className="h-13 w-full rounded-xl bg-blue-600 text-base font-bold hover:bg-blue-700"
+                  className="h-14 w-full rounded-2xl bg-blue-600 text-lg font-bold shadow-lg shadow-blue-600/20 transition-all hover:bg-blue-700 hover:shadow-blue-600/40"
                 >
-                  <Newspaper className="mr-2 h-5 w-5" />
+                  <Newspaper className="mr-2 h-6 w-6" />
                   Diagramar Jornal
                 </Button>
 
-                <Button variant="ghost" onClick={reset} className="text-white/45 hover:text-white">
+                <Button variant="ghost" onClick={reset} className="w-full text-slate-400 hover:text-white">
                   <RefreshCcw className="mr-2 h-4 w-4" />
                   Novo processamento
                 </Button>
               </div>
             )}
-
-            <div className="mt-5 border-t border-white/10 pt-4 text-center">
-              <p className="text-xs font-medium tracking-wide text-white/35">
-                Desenvolvido por Esio Lima • Versão 4.0
-              </p>
-            </div>
           </div>
         </section>
 
         {showJournal && result && (
-          <section className="space-y-6">
-            <div className="journal-preview-viewport">
-              <div className="journal-editor-controls" aria-label="Controles do jornal diagramado">
-                <p className="journal-editor-help">
-                  Clique na capa, cabeçalho, anúncio ou logo dos cards para substituir as imagens. Cada categoria será gerada como uma página independente. Use o nome "nada" na categoria para ocultar a tarja.
-                </p>
-
-                <div className="journal-editor-category-list">
-                  {groupedCards.map(([category]) => (
-                    <div
-                      key={category}
-                      className="journal-editor-category-control"
-                      title={`Configurações da categoria ${category}`}
-                    >
-                      <div className="journal-editor-category-name">{category}</div>
-
-                      <div className="journal-editor-color-row">
-                        <label className="journal-editor-color-control">
-                          <span>Fundo</span>
-                          <input
-                            type="color"
-                            value={getCategoryBackground(category)}
-                            onChange={(event) =>
-                              updateCategoryBackground(category, event.target.value)
-                            }
-                          />
-                        </label>
-
-                        <label className="journal-editor-color-control">
-                          <span>Tarja</span>
-                          <input
-                            type="color"
-                            value={getCategoryBarColor(category)}
-                            onChange={(event) =>
-                              updateCategoryBarColor(category, event.target.value)
-                            }
-                          />
-                        </label>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                <Button
-                  disabled={isGeneratingJournal}
-                  onClick={generateJournalPdf}
-                  className="h-12 w-full rounded-xl bg-slate-950 text-white hover:bg-blue-700 disabled:opacity-50"
-                >
-                  <FileDown className="mr-2 h-5 w-5" />
-                  {isGeneratingJournal ? "Gerando PDF..." : "Gerar em PDF"}
-                </Button>
-              </div>
-
-              <div
-                className="journal-preview-scaler"
-                style={{
-                  width: `${1080 * (journalZoom / 100)}px`,
-                  transform: `scale(${journalZoom / 100})`,
-                }}
-              >
-                <div ref={journalRef} className="journal-root">
-                  <div className="journal-page-label">Página 1 — Capa</div>
-
-                  <div
-                    className="journal-page journal-cover-page"
-                    data-journal-page="cover"
-                    data-journal-title="Capa"
-                    onClick={() => coverInputRef.current?.click()}
-                  >
-                    <img src={coverImage} alt="Capa do jornal" />
-                    <div className="journal-placeholder">
-                      <Pencil className="h-8 w-8" />
-                      Clique para escolher capa
-                    </div>
+          <section className="mt-12 space-y-8 animate-in fade-in slide-in-from-bottom-8 duration-700">
+            <div className="flex flex-col gap-8 lg:flex-row">
+              {/* Controles do Editor */}
+              <aside className="w-full shrink-0 lg:w-80">
+                <div className="sticky top-8 space-y-6 rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-xl">
+                  <div className="space-y-2">
+                    <h3 className="text-lg font-bold text-white">Configurações</h3>
+                    <p className="text-xs font-medium text-slate-400 leading-relaxed">
+                      Personalize as cores e imagens de cada categoria. Clique nas imagens no jornal para alterá-las.
+                    </p>
                   </div>
 
-                  {journalCardPages.map((journalPage, pageIndex) => {
-                    const nextPage = journalCardPages[pageIndex + 1];
-                    const isLastPageOfCategory =
-                      !nextPage || nextPage.category !== journalPage.category;
-                    const categoryBackground = getCategoryBackground(journalPage.category);
-                    const categoryBarColor = getCategoryBarColor(journalPage.category);
-                    const categoryBarTextColor = getReadableTextColor(categoryBarColor);
-                    const categoryBarLeftImage = getCategoryBarImage(journalPage.category, "left");
-                    const categoryBarRightImage = getCategoryBarImage(journalPage.category, "right");
-                    const footerTextColor = getReadableTextColor(categoryBackground);
-                    const footerBorderColor =
-                      footerTextColor === "#ffffff"
-                        ? "rgba(255,255,255,.38)"
-                        : "rgba(0,0,0,.16)";
-
-                    // Lógica para esconder tarja e cabeçalho se categoria for "nada"
-                    const isHiddenCategory = journalPage.category.toLowerCase() === "nada";
-
-                    return (
-                      <div
-                        key={`${journalPage.category}-${journalPage.pageIndexWithinCategory}`}
-                      >
-                        <div className="journal-page-label">
-                          Página {pageIndex + 2} — {journalPage.category}
-                          {journalPage.isContinuation ? " — continuação" : ""}
-                        </div>
-
-                        <section
-                          className={`journal-category-page ${
-                            journalPage.isContinuation ? "is-continuation" : ""
-                          } ${isLastPageOfCategory ? "is-last-category-page" : ""}`}
-                          data-journal-page="category"
-                          data-journal-title={
-                            journalPage.isContinuation
-                              ? `${journalPage.category} - continuação ${journalPage.pageIndexWithinCategory + 1}`
-                              : journalPage.category
-                          }
-                          style={{ background: categoryBackground }}
-                        >
-                          {!journalPage.isContinuation && !isHiddenCategory && (
-                            <>
-                              <div
-                                className="journal-header"
-                                onClick={() => headerInputRef.current?.click()}
-                              >
-                                <img src={headerImage} alt="Cabeçalho do jornal" />
-                                <span>Cabeçalho</span>
-                              </div>
-
-                              <div
-                                className="journal-category-bar"
-                                style={{
-                                  background: categoryBarColor,
-                                  color: categoryBarTextColor,
-                                }}
-                              >
-                                <button
-                                  type="button"
-                                  className="journal-category-bar-image-slot"
-                                  onClick={(event) => {
-                                    event.stopPropagation();
-                                    chooseCategoryBarImage(journalPage.category, "left");
-                                  }}
-                                  title={`Imagem esquerda da tarja ${journalPage.category}`}
-                                >
-                                  {categoryBarLeftImage ? (
-                                    <img src={categoryBarLeftImage} alt="Imagem esquerda da tarja" />
-                                  ) : (
-                                    <span className="journal-category-bar-image-placeholder" />
-                                  )}
-                                </button>
-
-                                <span className="journal-category-bar-title">
-                                  {journalPage.category}
-                                </span>
-
-                                <button
-                                  type="button"
-                                  className="journal-category-bar-image-slot"
-                                  onClick={(event) => {
-                                    event.stopPropagation();
-                                    chooseCategoryBarImage(journalPage.category, "right");
-                                  }}
-                                  title={`Imagem direita da tarja ${journalPage.category}`}
-                                >
-                                  {categoryBarRightImage ? (
-                                    <img src={categoryBarRightImage} alt="Imagem direita da tarja" />
-                                  ) : (
-                                    <span className="journal-category-bar-image-placeholder" />
-                                  )}
-                                </button>
-                              </div>
-                            </>
-                          )}
-
-                          <div className={`journal-grid ${isHiddenCategory ? "pt-12" : ""}`}>
-                            {journalPage.cards.map((card, index) => (
-                              <div
-                                className="journal-card-wrap"
-                                key={`${card.ordem}-${card.tipo}-${index}`}
-                              >
-                                <ShadowCard
-                                  html={card.html}
-                                  cardKey={`${card.ordem}-${card.tipo}-${index}`}
-                                />
-                              </div>
-                            ))}
-                          </div>
-
-                          {isLastPageOfCategory && (
-                            <div
-                              className="journal-footer-text"
-                              style={{
-                                color: footerTextColor,
-                                borderTopColor: footerBorderColor,
-                              }}
-                              contentEditable
-                              suppressContentEditableWarning
-                              onBlur={(event) => setFooterText(event.currentTarget.innerText)}
-                            >
-                              {footerText}
+                  <div className="space-y-4">
+                    {groupedCards.map(([category]) => (
+                      <div key={category} className="space-y-3 rounded-2xl bg-white/5 p-4 ring-1 ring-white/10">
+                        <h4 className="text-xs font-black uppercase tracking-wider text-blue-400">{category}</h4>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="space-y-1.5">
+                            <span className="text-[10px] font-bold uppercase text-slate-500">Fundo</span>
+                            <div className="relative flex h-10 w-full items-center overflow-hidden rounded-xl bg-white/10">
+                              <input
+                                type="color"
+                                value={getCategoryBackground(category)}
+                                onChange={(e) => updateCategoryBackground(category, e.target.value)}
+                                className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                              />
+                              <div className="ml-3 h-4 w-4 rounded-full border border-white/20" style={{ background: getCategoryBackground(category) }} />
+                              <span className="ml-2 text-[10px] font-mono text-white/60">{getCategoryBackground(category).toUpperCase()}</span>
                             </div>
-                          )}
-                        </section>
+                          </div>
+                          <div className="space-y-1.5">
+                            <span className="text-[10px] font-bold uppercase text-slate-500">Tarja</span>
+                            <div className="relative flex h-10 w-full items-center overflow-hidden rounded-xl bg-white/10">
+                              <input
+                                type="color"
+                                value={getCategoryBarColor(category)}
+                                onChange={(e) => updateCategoryBarColor(category, e.target.value)}
+                                className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                              />
+                              <div className="ml-3 h-4 w-4 rounded-full border border-white/20" style={{ background: getCategoryBarColor(category) }} />
+                              <span className="ml-2 text-[10px] font-mono text-white/60">{getCategoryBarColor(category).toUpperCase()}</span>
+                            </div>
+                          </div>
+                        </div>
                       </div>
-                    );
-                  })}
-
-                  <div className="journal-page-label">
-                    Página {journalCardPages.length + 2} — Anúncio
+                    ))}
                   </div>
 
+                  <div className="space-y-4 pt-4">
+                    <div className="flex items-center justify-between rounded-2xl bg-white/5 p-2 ring-1 ring-white/10">
+                      <button onClick={() => updateJournalZoom(journalZoom - 5)} className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/10 text-white transition-colors hover:bg-blue-600">
+                        <span className="text-xl font-bold">−</span>
+                      </button>
+                      <div className="flex items-center space-x-1 px-4">
+                        <span className="text-sm font-black text-white">{journalZoom}%</span>
+                      </div>
+                      <button onClick={() => updateJournalZoom(journalZoom + 5)} className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/10 text-white transition-colors hover:bg-blue-600">
+                        <span className="text-xl font-bold">+</span>
+                      </button>
+                    </div>
+
+                    <Button
+                      disabled={isGeneratingJournal}
+                      onClick={generateJournalPdf}
+                      className="h-14 w-full rounded-2xl bg-blue-600 font-black shadow-lg shadow-blue-600/20 transition-all hover:bg-blue-700"
+                    >
+                      <FileDown className="mr-2 h-5 w-5" />
+                      {isGeneratingJournal ? "Gerando..." : "Exportar PDF"}
+                    </Button>
+                  </div>
+                </div>
+              </aside>
+
+              {/* Visualização do Jornal */}
+              <div className="flex-1 overflow-hidden">
+                <div className="journal-preview-container overflow-auto rounded-3xl border border-white/10 bg-black/20 p-8 shadow-inner">
                   <div
-                    className="journal-page journal-ad-page"
-                    data-journal-page="ad"
-                    data-journal-title="Anúncio"
-                    onClick={() => adInputRef.current?.click()}
+                    className="journal-preview-scaler origin-top"
+                    style={{
+                      width: `${1080 * (journalZoom / 100)}px`,
+                      transform: `scale(${journalZoom / 100})`,
+                      margin: "0 auto"
+                    }}
                   >
-                    <img src={adImage} alt="Anúncio do jornal" />
-                    <div className="journal-placeholder">
-                      <Pencil className="h-8 w-8" />
-                      Clique para escolher anúncio
+                    <div ref={journalRef} className="journal-root">
+                      {/* Capa */}
+                      <div className="journal-page-label">Página 1 — Capa</div>
+                      <div
+                        className="journal-page journal-cover-page group"
+                        data-journal-page="cover"
+                        data-journal-title="Capa"
+                        onClick={() => coverInputRef.current?.click()}
+                      >
+                        <img src={coverImage} alt="Capa" />
+                        <div className="journal-placeholder opacity-0 transition-opacity group-hover:opacity-100">
+                          <Pencil className="mr-4 h-12 w-12" />
+                          Alterar Capa
+                        </div>
+                        <input type="file" ref={coverInputRef} className="hidden" accept="image/*" onChange={(e) => changeImage("cover", e.target.files?.[0])} />
+                      </div>
+
+                      {/* Páginas de Categorias */}
+                      {journalCardPages.map((journalPage, pageIndex) => {
+                        const categoryBackground = getCategoryBackground(journalPage.category);
+                        const categoryBarColor = getCategoryBarColor(journalPage.category);
+                        const categoryBarTextColor = getReadableTextColor(categoryBarColor);
+                        const categoryBarLeftImage = getCategoryBarImage(journalPage.category, "left");
+                        const categoryBarRightImage = getCategoryBarImage(journalPage.category, "right");
+                        
+                        const isNada = journalPage.category.toLowerCase() === "nada";
+
+                        return (
+                          <div key={`${journalPage.category}-${pageIndex}`}>
+                            <div className="journal-page-label">
+                              Página {pageIndex + 2} — {journalPage.category}
+                              {journalPage.isContinuation ? " (continuação)" : ""}
+                            </div>
+
+                            <section
+                              className={`journal-category-page ${journalPage.isContinuation ? "is-continuation" : ""}`}
+                              data-journal-page="category"
+                              data-journal-title={journalPage.isContinuation ? `${journalPage.category} - continuação` : journalPage.category}
+                              style={{ background: categoryBackground }}
+                            >
+                              {/* Cabeçalho da Página (Banner Azul) - Oculto se for continuação */}
+                              {!journalPage.isContinuation && (
+                                <div className="journal-header group" onClick={() => headerInputRef.current?.click()}>
+                                  <img src={headerImage} alt="Cabeçalho" />
+                                  <span className="opacity-0 transition-opacity group-hover:opacity-100">Alterar Cabeçalho</span>
+                                  <input type="file" ref={headerInputRef} className="hidden" accept="image/*" onChange={(e) => changeImage("header", e.target.files?.[0])} />
+                                </div>
+                              )}
+
+                              {/* Primeira Categoria da Página */}
+                              {!isNada && (
+                                <div className="journal-category-bar" style={{ background: categoryBarColor, color: categoryBarTextColor }}>
+                                  <button onClick={(e) => { e.stopPropagation(); chooseCategoryBarImage(journalPage.category, "left"); }} className="journal-category-bar-image-slot">
+                                    {categoryBarLeftImage ? <img src={categoryBarLeftImage} alt="L" /> : <div className="h-full w-full bg-white/10" />}
+                                  </button>
+                                  <span className="journal-category-bar-title">{journalPage.category}</span>
+                                  <button onClick={(e) => { e.stopPropagation(); chooseCategoryBarImage(journalPage.category, "right"); }} className="journal-category-bar-image-slot">
+                                    {categoryBarRightImage ? <img src={categoryBarRightImage} alt="R" /> : <div className="h-full w-full bg-white/10" />}
+                                  </button>
+                                </div>
+                              )}
+
+                              <div className={`journal-grid ${isNada && !journalPage.isContinuation ? "pt-12" : ""}`}>
+                                {journalPage.cards.map((card, idx) => (
+                                  <div className="journal-card-wrap" key={`card-${idx}`}>
+                                    <ShadowCard html={card.html} cardKey={`card-${pageIndex}-${idx}`} />
+                                  </div>
+                                ))}
+                              </div>
+
+                              {/* Categorias Adicionais na mesma página (Caso do NADA) */}
+                              {journalPage.additionalCategories?.map((extra, extraIdx) => {
+                                const extraBarColor = getCategoryBarColor(extra.category);
+                                const extraBarTextColor = getReadableTextColor(extraBarColor);
+                                const extraLeftImg = getCategoryBarImage(extra.category, "left");
+                                const extraRightImg = getCategoryBarImage(extra.category, "right");
+
+                                return (
+                                  <div key={`extra-${extraIdx}`}>
+                                    <div className="journal-category-bar" style={{ background: extraBarColor, color: extraBarTextColor }}>
+                                      <button onClick={(e) => { e.stopPropagation(); chooseCategoryBarImage(extra.category, "left"); }} className="journal-category-bar-image-slot">
+                                        {extraLeftImg ? <img src={extraLeftImg} alt="L" /> : <div className="h-full w-full bg-white/10" />}
+                                      </button>
+                                      <span className="journal-category-bar-title">{extra.category}</span>
+                                      <button onClick={(e) => { e.stopPropagation(); chooseCategoryBarImage(extra.category, "right"); }} className="journal-category-bar-image-slot">
+                                        {extraRightImg ? <img src={extraRightImg} alt="R" /> : <div className="h-full w-full bg-white/10" />}
+                                      </button>
+                                    </div>
+                                    <div className="journal-grid">
+                                      {extra.cards.map((card, idx) => (
+                                        <div className="journal-card-wrap" key={`extra-card-${idx}`}>
+                                          <ShadowCard html={card.html} cardKey={`extra-${extraIdx}-${idx}`} />
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+
+                              <div className="journal-footer-text" style={{ color: getReadableTextColor(categoryBackground), borderTopColor: getReadableTextColor(categoryBackground) === "#ffffff" ? "rgba(255,255,255,.2)" : "rgba(0,0,0,.1)" }}>
+                                Ofertas válidas enquanto durarem os estoques. Consulte condições nos canais oficiais.
+                              </div>
+                            </section>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 </div>
-              </div>
-
-              <div className="journal-zoom-controls" aria-label="Controle de zoom do visualizador">
-                <button
-                  type="button"
-                  onClick={() => updateJournalZoom(journalZoom - 5)}
-                  className="journal-zoom-button"
-                  aria-label="Diminuir zoom"
-                >
-                  −
-                </button>
-
-                <div className="journal-zoom-input-wrap">
-                  <input
-                    type="number"
-                    min={15}
-                    max={100}
-                    value={journalZoom}
-                    onChange={(event) => updateJournalZoom(Number(event.target.value))}
-                    className="journal-zoom-input"
-                    aria-label="Porcentagem de zoom"
-                  />
-                  <span>%</span>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => updateJournalZoom(journalZoom + 5)}
-                  className="journal-zoom-button"
-                  aria-label="Aumentar zoom"
-                >
-                  +
-                </button>
               </div>
             </div>
-
-            <input
-              ref={coverInputRef}
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={(event) => changeImage("cover", event.target.files?.[0])}
-            />
-
-            <input
-              ref={headerInputRef}
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={(event) => changeImage("header", event.target.files?.[0])}
-            />
-
-            <input
-              ref={adInputRef}
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={(event) => changeImage("ad", event.target.files?.[0])}
-            />
           </section>
         )}
-      </main>
-
-      <style>{journalCss}</style>
-
-      {isGeneratingJournal && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-2xl bg-white p-8 shadow-2xl">
-            <div className="mb-6 flex flex-col items-center text-center">
-              <div
-                className={`mb-4 flex h-16 w-16 items-center justify-center rounded-full ${
-                  journalError
-                    ? "bg-red-50 text-red-600"
-                    : journalDownloadUrl
-                      ? "bg-teal-50 text-teal-600"
-                      : "bg-blue-50 text-blue-600"
-                }`}
-              >
-                {journalError ? (
-                  <AlertCircle className="h-8 w-8" />
-                ) : journalDownloadUrl ? (
-                  <CheckCircle2 className="h-8 w-8" />
-                ) : (
-                  <FileText className="h-8 w-8 animate-pulse" />
-                )}
-              </div>
-
-              <h3 className="text-xl font-bold text-gray-900">
-                {journalError
-                  ? "Erro ao gerar o jornal"
-                  : journalDownloadUrl
-                    ? "Jornal PDF pronto"
-                    : "Gerando Jornal PDF"}
-              </h3>
-
-              <p className="mt-2 text-sm text-gray-500">
-                {journalError
-                  ? "A geração foi interrompida. Veja a mensagem abaixo."
-                  : journalDownloadUrl
-                    ? "Clique no botão abaixo para baixar o arquivo PDF."
-                    : "A ferramenta vai gerar capa, páginas de cards com altura ajustada e anúncio final."}
-              </p>
-            </div>
-
-            <div className="space-y-4">
-              <div className="h-3 w-full overflow-hidden rounded-full bg-gray-100">
-                <div
-                  className={`h-full transition-all duration-500 ease-out ${
-                    journalError
-                      ? "bg-red-600"
-                      : journalDownloadUrl
-                        ? "bg-teal-600"
-                        : "bg-blue-600"
-                  }`}
-                  style={{ width: `${journalProgress.step}%` }}
-                />
-              </div>
-
-              <div className="flex items-center justify-between gap-4 text-sm">
-                <span
-                  className={`font-medium ${
-                    journalError
-                      ? "text-red-600"
-                      : journalDownloadUrl
-                        ? "text-teal-600"
-                        : "text-blue-600"
-                  }`}
-                >
-                  {journalError || journalProgress.message}
-                </span>
-                <span className="shrink-0 text-gray-400">{journalProgress.step}%</span>
-              </div>
-
-              {!journalError && !journalDownloadUrl && (
-                <div className="rounded-xl bg-gray-50 p-3 text-xs leading-relaxed text-gray-500">
-                  O PDF final será montado com páginas de até 1080x1920, sem sobras artificiais e com rodapé apenas no fim de cada categoria.
-                </div>
-              )}
-
-              {journalDownloadUrl && !journalError && (
-                <div className="space-y-3">
-                  <a
-                    href={journalDownloadUrl}
-                    download={journalDownloadFileName}
-                    className="flex h-11 w-full items-center justify-center rounded-xl bg-teal-600 text-sm font-bold text-white hover:bg-teal-700"
-                  >
-                    <Download className="mr-2 h-5 w-5" />
-                    Baixar PDF
-                  </a>
-
-                  <Button
-                    onClick={() => {
-                      setIsGeneratingJournal(false);
-                      setJournalDownloadUrl(null);
-                      setJournalProgress({ step: 0, message: "" });
-                    }}
-                    className="h-11 w-full rounded-xl bg-gray-100 text-gray-700 hover:bg-gray-200"
-                  >
-                    Fechar
-                  </Button>
-                </div>
-              )}
-
-              {journalError && (
-                <Button
-                  onClick={() => {
-                    setIsGeneratingJournal(false);
-                    setJournalError(null);
-                    setJournalProgress({ step: 0, message: "" });
-                  }}
-                  className="h-11 w-full rounded-xl bg-red-600 text-white hover:bg-red-700"
-                >
-                  Fechar
-                </Button>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
+      </div>
+    </main>
   );
 }
 
 const journalCss = `
-  /* ... (Mesmo CSS anterior, mantido para integridade) ... */
-  .journal-grid.pt-12 {
-    padding-top: 48px;
+  .journal-root {
+    width: 1080px;
+    background: #fff;
+    color: #111;
+    font-family: sans-serif;
   }
-  
-  @font-face {
-    font-family: 'Inter';
-    src: url('/fonts/Inter-Regular.ttf') format('truetype');
-    font-weight: 400;
+  .journal-page-label {
+    height: 46px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #fff;
+    border: 1px solid #ddd;
+    font-weight: 900;
+    text-transform: uppercase;
   }
-  @font-face {
-    font-family: 'Inter';
-    src: url('/fonts/Inter-Bold.ttf') format('truetype');
-    font-weight: 700;
+  .journal-page {
+    position: relative;
+    width: 1080px;
+    height: 1920px;
+    overflow: hidden;
+    margin-bottom: 40px;
   }
-  @font-face {
-    font-family: 'Inter';
-    src: url('/fonts/Inter-Black.ttf') format('truetype');
+  .journal-cover-page img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .journal-placeholder {
+    position: absolute;
+    inset: 0;
+    background: rgba(0,0,0,0.4);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 32px;
     font-weight: 900;
   }
-
-  .journal-preview-viewport{
-    position:relative;
-    width:100%;
-    max-height:82vh;
-    overflow:auto;
-    display:flex;
-    justify-content:center;
-    align-items:flex-start;
-    background:#ffffff;
-    padding:24px;
-    border-radius:24px;
-    border:1px solid rgba(0,0,0,.10);
+  .journal-category-page {
+    width: 1080px;
+    min-height: 1920px;
+    padding-bottom: 60px;
+    margin-bottom: 40px;
+    box-shadow: 0 20px 50px rgba(0,0,0,0.1);
   }
-
-  .journal-preview-scaler{
-    width:324px;
-    height:auto;
-    min-height:576px;
-    display:flex;
-    justify-content:center;
-    align-items:flex-start;
-    flex-shrink:0;
-    transform:scale(.30);
-    transform-origin:top center;
-    transition:transform .22s ease, width .22s ease;
+  .journal-header {
+    height: 260px;
+    background: #0b2341;
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-size: 32px;
+    font-weight: 900;
   }
-
-  .journal-editor-controls,
-  .journal-zoom-controls{
-    position:sticky;
-    top:18px;
-    z-index:30;
-    align-self:flex-start;
-    border:1px solid rgba(0,0,0,.10);
-    border-radius:18px;
-    background:rgba(255,255,255,.92);
-    box-shadow:0 18px 40px rgba(15,23,42,.16);
-    backdrop-filter:blur(12px);
+  .journal-header img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
   }
-
-  .journal-editor-controls{
-    width:280px;
-    max-height:calc(82vh - 48px);
-    overflow:auto;
-    display:flex;
-    flex-direction:column;
-    gap:14px;
-    margin-right:18px;
-    padding:14px;
-    color:#0f172a;
+  .journal-category-bar {
+    width: 90%;
+    margin: 40px auto 20px auto;
+    height: 110px;
+    border-radius: 55px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 30px;
+    font-size: 32px;
+    font-weight: 900;
+    text-transform: uppercase;
   }
-
-  .journal-editor-help{
-    margin:0;
-    padding:0 2px 12px 2px;
-    border-bottom:1px solid rgba(15,23,42,.10);
-    font-size:12px;
-    line-height:1.45;
-    font-weight:700;
-    color:#334155;
+  .journal-category-bar-image-slot {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    overflow: hidden;
+    background: none;
+    border: none;
+    padding: 0;
   }
-
-  .journal-editor-category-list{
-    display:flex;
-    flex-direction:column;
-    gap:10px;
+  .journal-category-bar-image-slot img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
   }
-
-  .journal-editor-category-control{
-    display:flex;
-    flex-direction:column;
-    gap:9px;
-    padding:10px;
-    border:1px solid rgba(15,23,42,.08);
-    border-radius:14px;
-    background:#f8fafc;
-  }
-
-  .journal-editor-category-name{
-    max-width:100%;
-    overflow:hidden;
-    text-overflow:ellipsis;
-    white-space:nowrap;
-    font-size:12px;
-    font-weight:900;
-    text-transform:uppercase;
-    letter-spacing:.02em;
-    color:#0f172a;
-  }
-
-  .journal-editor-color-row{
-    display:grid;
-    grid-template-columns:1fr 1fr;
-    gap:8px;
-  }
-
-  .journal-editor-color-control{
-    display:flex;
-    align-items:center;
-    justify-content:space-between;
-    gap:8px;
-    min-width:0;
-    height:34px;
-    padding:0 8px;
-    border-radius:10px;
-    background:#e2e8f0;
-    color:#0f172a;
-    font-size:10px;
-    font-weight:900;
-    text-transform:uppercase;
-    cursor:pointer;
-  }
-
-  .journal-editor-color-control input{
-    width:28px;
-    height:24px;
-    border:0;
-    border-radius:8px;
-    background:transparent;
-    padding:0;
-    cursor:pointer;
-  }
-
-  .journal-zoom-controls{
-    display:flex;
-    flex-direction:column;
-    align-items:center;
-    gap:8px;
-    margin-left:18px;
-    padding:10px;
-  }
-
-  .journal-zoom-button{
-    width:38px;
-    height:38px;
-    border:0;
-    border-radius:12px;
-    background:#0f172a;
-    color:#fff;
-    font-size:22px;
-    font-weight:900;
-    line-height:1;
-    cursor:pointer;
-  }
-
-  .journal-zoom-button:hover{
-    background:#1d4ed8;
-  }
-
-  .journal-zoom-input-wrap{
-    display:flex;
-    width:70px;
-    height:38px;
-    align-items:center;
-    justify-content:center;
-    gap:2px;
-    border-radius:12px;
-    background:#f1f5f9;
-    color:#0f172a;
-    font-size:12px;
-    font-weight:900;
-  }
-
-  .journal-zoom-input{
-    width:40px;
-    border:0;
-    background:transparent;
-    text-align:right;
-    font-size:13px;
-    font-weight:900;
-    color:#0f172a;
-    outline:none;
-  }
-
-  .journal-root{
-    width:1080px;
-    margin:0 auto;
-    background:#ffffff;
-    color:#111;
-    font-family:Inter,Arial,sans-serif;
-  }
-
-  .journal-page-label{
-    width:1080px;
-    height:46px;
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    background:#ffffff;
-    color:#111111;
-    border:1px solid rgba(0,0,0,.12);
-    border-bottom:0;
-    font-size:18px;
-    font-weight:900;
-    letter-spacing:.04em;
-    text-transform:uppercase;
-  }
-
-  .journal-page{
-    position:relative;
-    width:1080px;
-    height:1920px;
-    background:#ffffff;
-    overflow:hidden;
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    box-shadow:0 20px 50px rgba(0,0,0,.08);
-    margin-bottom:40px;
-  }
-
-  .journal-cover-page,
-  .journal-ad-page,
-  .journal-header,
-  .journal-card-wrap{
-    cursor:pointer;
-  }
-
-  .journal-cover-page img,
-  .journal-ad-page img{
-    position:absolute;
-    inset:0;
-    width:100%;
-    height:100%;
-    object-fit:cover;
-    z-index:2;
-  }
-
-  .journal-placeholder{
-    position:absolute;
-    inset:48px;
-    border:3px dashed rgba(0,0,0,.35);
-    display:flex;
-    gap:20px;
-    align-items:center;
-    justify-content:center;
-    text-align:center;
-    font-size:34px;
-    font-weight:900;
-    color:#111;
-    background:rgba(255,255,255,.72);
-    z-index:1;
-    pointer-events:none;
-  }
-
-  .journal-category-page{
-    position:relative;
-    width:1080px;
-    height:auto;
-    min-height:0;
-    max-height:1920px;
-    padding-bottom:40px;
-    background:#ffffff;
-    box-shadow:0 20px 50px rgba(0,0,0,.08);
-    margin-bottom:40px;
-    overflow:hidden;
-  }
-
-  .journal-header{
-    position:relative;
-    width:1080px;
-    height:260px;
-    background:#0b2341;
-    color:#fff;
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    font-size:38px;
-    font-weight:900;
-    overflow:hidden;
-  }
-
-  .journal-header img{
-    position:absolute;
-    inset:0;
-    width:100%;
-    height:100%;
-    object-fit:cover;
-    display:block;
-    z-index:2;
-  }
-
-  .journal-header span{
-    position:relative;
-    z-index:1;
-    pointer-events:none;
-  }
-
-  .journal-category-bar{
-    width:calc(100% - 72px);
-    min-height:116px;
-    margin:38px auto 24px auto;
-    background:#0f6bc8;
-    color:white;
-    display:grid;
-    grid-template-columns:100px minmax(0, 1fr) 100px;
-    align-items:center;
-    justify-content:center;
-    gap:18px;
-    text-transform:uppercase;
-    text-align:center;
-    font-size:30px;
-    line-height:1;
-    font-weight:900;
-    letter-spacing:.04em;
-    padding:8px 28px;
-    border-radius:999px;
-    box-sizing:border-box;
-  }
-
-  .journal-category-bar-title{
-    display:flex;
-    min-width:0;
-    align-items:center;
-    justify-content:center;
-    overflow-wrap:anywhere;
-  }
-
-  .journal-category-bar-image-slot{
-    width:100px;
-    height:100px;
-    border:0;
-    border-radius:0;
-    background:transparent;
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    overflow:hidden;
-    cursor:pointer;
-    padding:0;
-  }
-
-  .journal-category-bar-image-slot:hover{
-    background:transparent;
-  }
-
-  .journal-category-bar-image-slot img{
-    width:100%;
-    height:100%;
-    object-fit:contain;
-    display:block;
-  }
-
-  .journal-category-bar-image-placeholder{
-    display:block;
-    width:100%;
-    height:100%;
-  }
-
-  .journal-grid{
+  .journal-grid {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
-    gap: 20px;
-    padding: 20px 36px 36px 36px;
-    box-sizing: border-box;
-    align-content: start;
+    gap: 25px;
+    padding: 20px 50px;
   }
-
-  .journal-category-page:not(.is-last-category-page){
-    padding-bottom:10px;
+  .journal-card-wrap {
+    height: 476px;
+    background: #fff;
+    border-radius: 20px;
+    overflow: hidden;
+    box-shadow: 0 10px 20px rgba(0,0,0,0.1);
   }
-
-  .journal-category-page.is-continuation .journal-grid{
-    padding-top:10px;
+  .journal-card-shadow-host {
+    width: 700px;
+    height: 1058px;
+    transform: scale(0.45);
+    transform-origin: top left;
   }
-
-  .journal-category-page.is-continuation:not(.is-last-category-page) .journal-grid{
-    padding-bottom:10px;
-  }
-
-  .journal-card-wrap{
-    position:relative;
-    width:100%;
-    height:476px;
-    border-radius:22px;
-    overflow:hidden;
-    background:#fff;
-    box-shadow:0 10px 20px rgba(0,0,0,.12);
-  }
-
-  .journal-card-shadow-host{
-    display:block;
-    width:700px;
-    height:1058px;
-    overflow:hidden;
-    background:#fff;
-    transform:scale(.45);
-    transform-origin:top left;
-  }
-
-  .journal-footer-text{
-    position:relative;
-    left:auto;
-    right:auto;
-    bottom:auto;
-    margin:12px 54px 0 54px;
-    padding:18px 24px 0 24px;
-    border-top:2px solid rgba(0,0,0,.16);
-    text-align:center;
-    font-size:16px;
-    line-height:1.32;
-    font-weight:500;
-    outline:2px dashed transparent;
-    color:#111;
-  }
-
-  .journal-footer-text:focus{
-    outline-color:#0f6bc8;
-    background:rgba(15,107,200,.06);
-  }
-
-  @media print{
-    .journal-page-label{
-      display:none;
-    }
+  .journal-footer-text {
+    margin: 40px 50px 0 50px;
+    padding-top: 20px;
+    border-top: 2px solid #ddd;
+    text-align: center;
+    font-size: 16px;
+    font-weight: 600;
   }
 `;
