@@ -1867,12 +1867,10 @@ const journalCss = `
     width:1080px;
     height:auto;
     min-height:0;
-    max-height:1920px;
     padding-bottom:40px;
     background:#ffffff;
     box-shadow:0 20px 50px rgba(0,0,0,.08);
     margin-bottom:40px;
-    overflow:hidden;
   }
 
   .journal-header{
