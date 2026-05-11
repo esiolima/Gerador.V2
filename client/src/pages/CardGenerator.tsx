@@ -1064,16 +1064,18 @@ export default function CardGenerator() {
                           />
                         </label>
 
-                        <label className="journal-editor-color-control">
-                          <span>Tarja</span>
-                          <input
-                            type="color"
-                            value={getCategoryBarColor(category)}
-                            onChange={(event) =>
-                              updateCategoryBarColor(category, event.target.value)
-                            }
-                          />
-                        </label>
+                        {category.toLowerCase() !== "nada" && (
+                          <label className="journal-editor-color-control">
+                            <span>Tarja</span>
+                            <input
+                              type="color"
+                              value={getCategoryBarColor(category)}
+                              onChange={(event) =>
+                                updateCategoryBarColor(category, event.target.value)
+                              }
+                            />
+                          </label>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -1141,6 +1143,7 @@ export default function CardGenerator() {
                         const nextAfterMain = journalCardPages[pageIndex + 2];
                         const isLastPageOfMainCategory =
                           !nextAfterMain || nextAfterMain.category !== mainPage.category;
+                        const nadaCategoryBackground = getCategoryBackground(nadaPage.category);
                         const mainCategoryBackground = getCategoryBackground(mainPage.category);
                         const mainCategoryBarColor = getCategoryBarColor(mainPage.category);
                         const mainCategoryBarTextColor = getReadableTextColor(mainCategoryBarColor);
@@ -1174,7 +1177,7 @@ export default function CardGenerator() {
                               </div>
 
                               {/* Cards da categoria NADA (sem tarja) */}
-                              <div className="journal-grid pt-12">
+                              <div className="journal-grid pt-12" style={{ background: nadaCategoryBackground }}>
                                 {nadaPage.cards.map((card, index) => (
                                   <div
                                     className="journal-card-wrap"
