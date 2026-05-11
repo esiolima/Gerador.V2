@@ -514,12 +514,17 @@ export default function CardGenerator() {
   };
 
   const errorLines = useMemo(() => {
-    if (!error) return [];
+  if (!error) return [];
 
-    return error
-      .split(/\n+/)
-      .map((line) => line.trim())
-      .filter(Boolean);
+  const safeError =
+    typeof error === "string"
+      ? error
+      : JSON.stringify(error, null, 2);
+
+  return safeError
+    .split(/\n+/)
+    .map((line) => line.trim())
+    .filter(Boolean);
   }, [error]);
 
   const isSpreadsheetValidationError = useMemo(() => {
