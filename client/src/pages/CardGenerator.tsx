@@ -82,7 +82,8 @@ function buildJournalCardPages(
     let remainingCards = [...cards];
     let pageIndexWithinCategory = 0;
 
-    while (remainingCards.length > 0) {
+   while (remainingCards.length > 0) {
+      // Se pageIndexWithinCategory for 0, é a primeira página daquela categoria
       const limit =
         pageIndexWithinCategory === 0
           ? FIRST_CATEGORY_PAGE_CARD_LIMIT
