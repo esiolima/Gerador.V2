@@ -268,7 +268,7 @@ async function renderSinglePagePdf(
     });
 
     await page.setContent(buildPageHtml(journalPage.html, baseUrl), {
-      waitUntil: "networkidle0",
+      waitUntil: "domcontentloaded",
       timeout: 90000,
     });
 
