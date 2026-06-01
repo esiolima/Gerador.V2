@@ -57,7 +57,7 @@ type JournalCardPage = {
 
 type CategoryBarImages = Record<string, { left?: string; right?: string }>;
 
-const FIRST_CATEGORY_PAGE_CARD_LIMIT = 6;
+const FIRST_CATEGORY_PAGE_CARD_LIMIT = 9;
 const CONTINUATION_CATEGORY_PAGE_CARD_LIMIT = 9;
 
 function getReadableTextColor(backgroundColor: string) {
@@ -2019,12 +2019,13 @@ const journalCss = `
   }
 
   .journal-grid{
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 20px;
-    padding: 20px 36px 36px 36px;
-    box-sizing: border-box;
-    align-content: start;
+    display:grid;
+    grid-template-columns:repeat(3, 320px);
+    justify-content:center;
+    gap:20px;
+    padding:20px 36px 36px 36px;
+    box-sizing:border-box;
+    align-content:start;
   }
 
   .journal-category-page:not(.is-last-category-page){
