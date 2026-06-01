@@ -551,7 +551,7 @@ export default function CardGenerator() {
   const isSpreadsheetValidationError = useMemo(() => {
     if (!error) return false;
 
-    const normalizedError = error.toLowerCase();
+    const normalizedError = String(error || "").toLowerCase();
 
     return (
       errorLines.length > 1 ||
@@ -613,7 +613,7 @@ export default function CardGenerator() {
   const handleFileSelect = (selectedFile: File | null | undefined) => {
     if (!selectedFile) return;
 
-    if (!selectedFile.name.toLowerCase().endsWith(".xlsx")) {
+    if (!String(selectedFile.name || "").toLowerCase().endsWith(".xlsx")) {
       const message = "Arquivo inválido: envie uma planilha no formato .xlsx.";
       setError(message);
       return;
@@ -1064,7 +1064,7 @@ export default function CardGenerator() {
                           />
                         </label>
 
-                        {category.toLowerCase() !== "nada" && (
+                        {String(category || "").toLowerCase() !== "nada" && (
                           <label className="journal-editor-color-control">
                             <span>Tarja</span>
                             <input
@@ -1282,7 +1282,10 @@ export default function CardGenerator() {
                           ? "rgba(255,255,255,.38)"
                           : "rgba(0,0,0,.16)";
 
-                      const isHiddenCategory = journalPage.category.toLowerCase() === "nada";
+                      const isHiddenCategory =
+                        String(journalPage.category || "")
+                          .toLowerCase()
+                          .trim() === "nada";
 
                       return (
                         <div
