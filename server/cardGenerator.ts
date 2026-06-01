@@ -40,7 +40,38 @@ export type GenerateCardsResult = {
   processedRows: number;
 };
 
-const VALID_TYPES = ["promocao", "cupom", "cashback", "queda", "bc", "soma", "nada"];
+const VALID_TYPES = [
+  "promocao",
+  "cupom",
+  "cashback",
+  "queda",
+  "bc",
+  "soma",
+  "nada",
+];
+
+const REQUIRED_HEADERS = [
+  "ordem",
+  "tipo",
+  "categoria",
+  "fornecedor",
+  "selo",
+  "cupom",
+  "texto",
+  "valor",
+  "complemento",
+  "legal",
+  "urn",
+  "uf",
+  "segmento",
+];
+
+const VALID_SELOS = [
+  "nova",
+  "novo",
+  "renovada",
+  "renovado",
+];
 
 type ProgressStage =
   | "iniciando"
@@ -211,9 +242,79 @@ export class CardGenerator extends EventEmitter {
   }
 
   private validateRows(rows: any[]): void {
-    if (!rows || rows.length === 0) {
-      throw new Error("A planilha está vazia.");
+      ) {
+        errors.push(
+          `Linha ${line}: o campo ORDEM deve conter apenas números inteiros.`
+        );
+      }
+
+      usedOrders.add(ordem);
     }
+
+    /* =========================
+       TIPO
+    ========================= */
+
+    if (!tipoOriginal) {
+      errors.push(
+        `Linha ${line}: o campo TIPO não foi preenchido.`
+      );
+    } else {
+      if (!tipo || !VALID_TYPES.includes(tipo)) {
+        errors.push(
+          `Linha ${line}: o tipo "${tipoOriginal}" não é válido. Use apenas PROMO, CUPOM, QUEDA, BC ou CASHBACK.`
+        );
+      }
+    }
+
+    /* =========================
+       CATEGORIA
+    ========================= */
+
+    if (!categoria) {
+      errors.push(
+        `Linha ${line}: o campo CATEGORIA não foi preenchido.`
+      );
+    }
+
+    /* =========================
+       VALOR
+    ========================= */
+
+    if (!valor) {
+      errors.push(
+        `Linha ${line}: o campo VALOR não foi preenchido.`
+      );
+    }
+
+    /* =========================
+       CUPOM
+    ========================= */
+
+    if (tipo === "cupom" && !cupom) {
+      errors.push(
+        `Linha ${line}: o código do cupom é obrigatório quando o tipo é CUPOM.`
+      );
+    }
+
+    /* =========================
+       SELO
+    ========================= */
+
+    if (
+      selo &&
+      !VALID_SELOS.includes(selo)
+    ) {
+      errors.push(
+        `Linha ${line}: o selo "${row.selo}" é inválido. Use apenas nova, novo, renovada ou renovado.`
+      );
+    }
+  });
+
+  if (errors.length > 0) {
+    throw new Error(errors.join("\n\n"));
+  }
+}
 
     const headers = Object.keys(rows[0] ?? {}).map((h) =>
       String(h || "").toLowerCase().trim()
