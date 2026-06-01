@@ -638,6 +638,17 @@ const [adPages, setAdPages] = useState<string[]>(() => {
   }, [sessionId]);
 
   useEffect(() => {
+    try {
+      window.localStorage.setItem(
+        AD_PAGES_STORAGE_KEY,
+        JSON.stringify(adPages)
+      );
+    } catch {
+      // localStorage pode falhar em modo privado ou com storage cheio
+    }
+  }, [adPages]);
+
+  useEffect(() => {
     window.localStorage.setItem(
       CATEGORY_BACKGROUNDS_STORAGE_KEY,
       JSON.stringify(categoryBackgrounds)
@@ -782,6 +793,17 @@ const [adPages, setAdPages] = useState<string[]>(() => {
     )
   );
 };
+
+  const addAdPage = () => {
+    setAdPages((current) => [...current, "/assets/anuncio.png"]);
+  };
+
+  const removeAdPage = () => {
+    setAdPages((current) => {
+      if (current.length <= 1) return current;
+      return current.slice(0, -1);
+    });
+  };
 
   const generateJournalPdf = async () => {
     if (!journalRef.current || !result) return;
@@ -1180,6 +1202,40 @@ const [adPages, setAdPages] = useState<string[]>(() => {
                   <FileDown className="mr-2 h-5 w-5" />
                   {isGeneratingJournal ? "Gerando PDF..." : "Gerar em PDF"}
                 </Button>
+
+                <div className="flex items-center justify-between gap-2 px-1">
+                  <span className="text-xs font-bold text-slate-600 uppercase tracking-wide">
+                    Páginas de anúncio: {adPages.length}
+                  </span>
+                  <div className="flex gap-1">
+                    <button
+                      type="button"
+                      onClick={removeAdPage}
+                      disabled={adPages.length <= 1}
+                      title="Remover última página de anúncio"
+                      style={{
+                        width: 28, height: 28, borderRadius: 8, border: "none",
+                        background: adPages.length <= 1 ? "#e2e8f0" : "#ef4444",
+                        color: adPages.length <= 1 ? "#94a3b8" : "#fff",
+                        fontWeight: 900, fontSize: 18, lineHeight: 1, cursor: adPages.length <= 1 ? "not-allowed" : "pointer"
+                      }}
+                    >
+                      −
+                    </button>
+                    <button
+                      type="button"
+                      onClick={addAdPage}
+                      title="Adicionar página de anúncio"
+                      style={{
+                        width: 28, height: 28, borderRadius: 8, border: "none",
+                        background: "#0f6bc8", color: "#fff",
+                        fontWeight: 900, fontSize: 18, lineHeight: 1, cursor: "pointer"
+                      }}
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
               </div>
 
               <div
@@ -2034,6 +2090,9 @@ const journalCss = `
     padding:8px 28px;
     border-radius:999px;
     box-sizing:border-box;
+    position:relative;
+    left:0;
+    right:0;
   }
 
   .journal-category-bar-title{
@@ -2079,10 +2138,24 @@ const journalCss = `
     display:grid;
     grid-template-columns:repeat(3, 320px);
     justify-content:center;
+    justify-items:center;
     gap:20px;
     padding:20px 36px 36px 36px;
     box-sizing:border-box;
     align-content:start;
+  }
+
+  /* Centraliza 1 card */
+  .journal-grid > .journal-card-wrap:only-child {
+    grid-column: 2;
+  }
+
+  /* Centraliza 2 cards */
+  .journal-grid:has(> .journal-card-wrap:nth-child(2)):not(:has(> .journal-card-wrap:nth-child(3))) > .journal-card-wrap:first-child {
+    grid-column: 1;
+  }
+  .journal-grid:has(> .journal-card-wrap:nth-child(2)):not(:has(> .journal-card-wrap:nth-child(3))) > .journal-card-wrap:nth-child(2) {
+    grid-column: 3;
   }
 
   .journal-category-page:not(.is-last-category-page){
