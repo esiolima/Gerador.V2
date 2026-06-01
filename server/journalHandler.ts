@@ -67,6 +67,7 @@ async function launchBrowser(): Promise<Browser> {
       "--no-sandbox",
       "--disable-setuid-sandbox",
       "--disable-dev-shm-usage",
+      "--font-render-hinting=none",
       "--disable-gpu",
       "--disable-extensions",
       "--disable-background-networking",
@@ -166,6 +167,26 @@ function buildPageHtml(pageHtml: string, baseUrl: string) {
     .journal-card-wrap {
       overflow: hidden !important;
       flex-shrink: 0 !important;
+    }
+
+    .journal-category-bar {
+      position: relative !important;
+      left: 0 !important;
+      right: 0 !important;
+      margin-left: auto !important;
+      margin-right: auto !important;
+      box-sizing: border-box !important;
+    }
+
+    .journal-grid {
+      display: grid !important;
+      grid-template-columns: repeat(3, 320px) !important;
+      justify-content: center !important;
+      justify-items: center !important;
+      gap: 20px !important;
+      padding: 20px 36px 36px 36px !important;
+      box-sizing: border-box !important;
+      align-content: start !important;
     }
 
     .journal-card-shadow-host {
