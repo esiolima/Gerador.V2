@@ -82,7 +82,7 @@ function buildJournalCardPages(groupedCards: [string, GeneratedCard[]][]): Journ
 
   const [firstCatName, firstCatCards] = firstCategoryEntry;
 
-  if (firstCatName.toUpperCase() === "NADA") {
+  if (String(firstCatName || "").toUpperCase() === "NADA") {
     pages.push({
       category: "NADA",
       cards: firstCatCards.slice(0, FIRST_CATEGORY_PAGE_CARD_LIMIT),
@@ -381,6 +381,9 @@ function buildJournalPagesForPdf(journalElement: HTMLDivElement): JournalPagePay
 }
 
 const PAGE_BACKGROUND_STORAGE_KEY = "jornal_page_background";
+const COVER_IMAGE_STORAGE_KEY = "jornal_cover_image";
+const HEADER_IMAGE_STORAGE_KEY = "jornal_header_image";
+const AD_IMAGE_STORAGE_KEY = "jornal_ad_image";
 const CATEGORY_BACKGROUNDS_STORAGE_KEY = "jornal_category_backgrounds";
 const CATEGORY_BAR_COLORS_STORAGE_KEY = "jornal_category_bar_colors";
 const CATEGORY_BAR_IMAGES_STORAGE_KEY = "jornal_category_bar_images";
@@ -401,9 +404,36 @@ export default function CardGenerator() {
   const [isDragging, setIsDragging] = useState(false);
   const [showJournal, setShowJournal] = useState(false);
 
-  const [coverImage, setCoverImage] = useState<string>("/assets/capa.png");
-  const [headerImage, setHeaderImage] = useState<string>("/assets/header.png");
-  const [adImage, setAdImage] = useState<string>("/assets/anuncio.png");
+  const [coverImage, setCoverImage] = useState<string>(() => {
+  if (typeof window === "undefined") {
+    return "/assets/capa.png";
+  }
+
+  return (
+    window.localStorage.getItem(COVER_IMAGE_STORAGE_KEY) ||
+    "/assets/capa.png"
+  );
+});
+  const [headerImage, setHeaderImage] = useState<string>(() => {
+  if (typeof window === "undefined") {
+    return "/assets/header.png";
+  }
+
+  return (
+    window.localStorage.getItem(HEADER_IMAGE_STORAGE_KEY) ||
+    "/assets/header.png"
+  );
+});
+  const [adImage, setAdImage] = useState<string>(() => {
+  if (typeof window === "undefined") {
+    return "/assets/anuncio.png";
+  }
+
+  return (
+    window.localStorage.getItem(AD_IMAGE_STORAGE_KEY) ||
+    "/assets/anuncio.png"
+  );
+});
   const [categoryBackgrounds, setCategoryBackgrounds] = useState<Record<string, string>>(() => {
     if (typeof window === "undefined") return { __default: DEFAULT_JOURNAL_BACKGROUND };
 
@@ -687,9 +717,30 @@ export default function CardGenerator() {
 
     const dataUrl = await readImageAsDataUrl(selectedFile);
 
-    if (kind === "cover") setCoverImage(dataUrl);
-    if (kind === "header") setHeaderImage(dataUrl);
-    if (kind === "ad") setAdImage(dataUrl);
+    if (kind === "cover") {
+  setCoverImage(dataUrl);
+
+  window.localStorage.setItem(
+    COVER_IMAGE_STORAGE_KEY,
+    dataUrl
+  );
+}
+    if (kind === "header") {
+  setHeaderImage(dataUrl);
+
+  window.localStorage.setItem(
+    HEADER_IMAGE_STORAGE_KEY,
+    dataUrl
+  );
+}
+    if (kind === "ad") {
+  setAdImage(dataUrl);
+
+  window.localStorage.setItem(
+    AD_IMAGE_STORAGE_KEY,
+    dataUrl
+  );
+}
   };
 
   const generateJournalPdf = async () => {
