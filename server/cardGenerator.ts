@@ -241,7 +241,78 @@ export class CardGenerator extends EventEmitter {
     return prefixMatch || "";
   }
 
-  private validateRows(rows: any[]): void {
+private validateRows(rows: any[]): void {
+  if (!rows || rows.length === 0) {
+    throw new Error(
+      "A planilha está vazia. Verifique o arquivo enviado."
+    );
+  }
+
+  const headers = Object.keys(rows[0] ?? {}).map((header) =>
+    String(header || "")
+      .trim()
+      .toLowerCase()
+  );
+
+  const missingHeaders = REQUIRED_HEADERS.filter(
+    (header) => !headers.includes(header)
+  );
+
+  if (missingHeaders.length > 0) {
+    const mensagens = missingHeaders.map(
+      (header) =>
+        `A planilha está faltando a coluna "${header}".`
+    );
+
+    throw new Error(
+      `${mensagens.join("\n")}\n\nVerifique o cabeçalho da planilha e tente novamente.`
+    );
+  }
+
+  const errors: string[] = [];
+  const usedOrders = new Set<string>();
+
+  rows.forEach((row, index) => {
+    const line = index + 2;
+
+    const ordem = String(row.ordem || "").trim();
+
+    const tipoOriginal = String(row.tipo || "").trim();
+
+    const tipo = this.normalizeType(tipoOriginal);
+
+    const categoria = String(row.categoria || "").trim();
+
+    const valor = String(row.valor || "").trim();
+
+    const cupom = String(row.cupom || "").trim();
+
+    const selo = String(row.selo || "")
+      .trim()
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "");
+
+    /* =========================
+       ORDEM
+    ========================= */
+
+    if (!ordem) {
+      errors.push(
+        `Linha ${line}: o campo ORDEM não foi preenchido.`
+      );
+    } else {
+      if (usedOrders.has(ordem)) {
+        errors.push(
+          `Linha ${line}: a ordem "${ordem}" está repetida. Cada card precisa ter uma ordem única.`
+        );
+      }
+
+      const ordemNumero = Number(ordem);
+
+      if (
+        isNaN(ordemNumero) ||
+        !Number.isInteger(ordemNumero)
       ) {
         errors.push(
           `Linha ${line}: o campo ORDEM deve conter apenas números inteiros.`
@@ -260,9 +331,20 @@ export class CardGenerator extends EventEmitter {
         `Linha ${line}: o campo TIPO não foi preenchido.`
       );
     } else {
-      if (!tipo || !VALID_TYPES.includes(tipo)) {
+      if (
+        !tipo ||
+        !VALID_TYPES.includes(tipo)
+      ) {
         errors.push(
-          `Linha ${line}: o tipo "${tipoOriginal}" não é válido. Use apenas PROMO, CUPOM, QUEDA, BC ou CASHBACK.`
+          `Linha ${line}: o tipo "${tipoOriginal}" não é válido.
+
+Use apenas:
+PROMO
+PROMOCAO
+CUPOM
+QUEDA
+BC
+CASHBACK`
         );
       }
     }
@@ -315,146 +397,6 @@ export class CardGenerator extends EventEmitter {
     throw new Error(errors.join("\n\n"));
   }
 }
-
-    const headers = Object.keys(rows[0] ?? {}).map((h) =>
-      String(h || "").toLowerCase().trim()
-    );
-
-    const requiredHeaders = ["ordem", "tipo"];
-    const missingHeaders = requiredHeaders.filter(
-      (header) => !headers.includes(header)
-    );
-
-    if (missingHeaders.length) { 
-      throw new Error(
-        `Colunas obrigatórias ausentes: ${missingHeaders.join(", ")}.`
-      );
-    }
-
-    const errors: string[] = [];
-    const usedOrders = new Set<string>();
-
-    rows.forEach((row, index) => { 
-      const line = index + 2;
-
-      const ordem = String(row.ordem ?? "").trim();
-      const tipoOriginal = String(row.tipo ?? "").trim();
-      const tipo = this.normalizeType(tipoOriginal);
-
-      const valor = String(row.valor ?? "").trim();
-      const cupom = String(row.cupom ?? "").trim();
-      const logo = String(row.logo ?? "").trim();
-      const complemento = String(row.complemento ?? "").trim();
-
-      const selo = String(row.selo ?? "")
-        .trim()
-        .toLowerCase();
-
-      if (!ordem) { 
-        errors.push(`Linha ${line}: campo ORDEM vazio.`);
-      } else {
-        if (usedOrders.has(ordem)) {
-          errors.push(`Linha ${line}: ordem duplicada (${ordem}).`);
-        }
-
-        if (isNaN(Number(ordem))) {
-          errors.push(`Linha ${line}: ORDEM deve ser numérica.`);
-        }
-
-        usedOrders.add(ordem);
-      }
-
-      if (!tipoOriginal) {
-        errors.push(`Linha ${line}: coluna TIPO vazia.`); 
-        return;
-      }
-
-      if (!tipo || !VALID_TYPES.includes(tipo)) {
-        errors.push(
-          `Linha ${line}: tipo "${tipoOriginal}" não reconhecido.`
-        );
-        return;
-      }
-
-      if (
-        selo &&
-        !["nova", "novo", "renovada", "renovado"].includes(selo) 
-      ) {
-        errors.push(
-          `Linha ${line}: selo inválido. Use nova, novo, renovada ou renovado.`
-        );
-      }
-
-      if (tipo === "nada") { 
-        return;
-      }
-
-      if (tipo === "soma") {
-        if (!valor) { 
-          errors.push(
-            `Linha ${line}: template SOMA exige o campo VALOR.`
-          );
-        }
-
-        if (!complemento) {
-          errors.push(
-            `Linha ${line}: template SOMA exige o campo COMPLEMENTO.`
-          );
-        }
-
-        return;
-      }
-
-      if (!logo) { 
-        errors.push(
-          `Linha ${line}: campo LOGO não pode ficar vazio.`
-        );
-      }
-
-      if (tipo === "cupom" && !cupom) {
-        errors.push(
-          `Linha ${line}: template CUPOM exige o campo CUPOM preenchido.`
-        );
-      }
-
-      if (tipo === "promocao") {
-        if (!valor) { 
-          errors.push(
-            `Linha ${line}: template PROMOCAO exige o campo VALOR.`
-          );
-        }
-
-        return;
-      }
-
-      if (["queda", "bc", "cashback"].includes(tipo)) {
-        if (!valor) { 
-          errors.push(
-            `Linha ${line}: template ${tipo.toUpperCase()} exige o campo VALOR.`
-          );
-        } else {
-          const normalizedValue = valor
-            .replace(/%/g, "")
-            .replace(/\./g, ",")
-            .trim();
-
-          const numericValidation = normalizedValue.replace(/,/g, ".");
-
-          if (isNaN(Number(numericValidation))) {
-            errors.push(
-              `Linha ${line}: template ${tipo.toUpperCase()} aceita apenas números no VALOR.`
-            );
-          }
-
-          row.valor = normalizedValue;
-        }
-      }
-    });
-
-    if (errors.length > 0) {
-      throw new Error(errors.join("\n"));
-    }
-  }
 
   private injectFittingHelpers(html: string): string {
     const helper = `
