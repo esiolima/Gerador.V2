@@ -509,6 +509,7 @@ const [adPages, setAdPages] = useState<string[]>(() => {
   const coverInputRef = useRef<HTMLInputElement>(null);
   const headerInputRef = useRef<HTMLInputElement>(null);
 
+
   const [, setLocation] = useLocation();
 
   const generateCardsMutation = trpc.card.generateCards.useMutation();
@@ -1479,46 +1480,47 @@ const [adPages, setAdPages] = useState<string[]>(() => {
                     });
                   })()}
 
-{adPages.map((adPage, adIndex) => (
-  <div key={`ad-page-${adIndex}`}>
-    <div className="journal-page-label">
-      Página {journalCardPages.length + 2 + adIndex} — Anúncio
-    </div>
+                  {adPages.map((adPage, adIndex) => (
+                    <div key={`ad-page-${adIndex}`}>
+                      <div className="journal-page-label">
+                        Página {journalCardPages.length + 2 + adIndex} — Anúncio
+                      </div>
 
-    <div
-      className="journal-page journal-ad-page"
-      data-journal-page="ad"
-      data-journal-title={`Anúncio ${adIndex + 1}`}
-      onClick={() => {
-        const input = document.createElement("input");
+                      <div
+                        className="journal-page journal-ad-page"
+                        data-journal-page="ad"
+                        data-journal-title={`Anúncio ${adIndex + 1}`}
+                        onClick={() => {
+                          const input = document.createElement("input");
 
-        input.type = "file";
-        input.accept = "image/*";
+                          input.type = "file";
+                          input.accept = "image/*";
 
-        input.onchange = (event: Event) => {
-          const target = event.target as HTMLInputElement | null;
+                          input.onchange = (event: Event) => {
+                            const target =
+                              event.target as HTMLInputElement | null;
 
-          changeAdPageImage(
-            adIndex,
-            target?.files?.[0]
-          );
-        };
+                            changeAdPageImage(
+                              adIndex,
+                              target?.files?.[0]
+                            );
+                          };
 
-        input.click();
-      }}
-    >
-      <img
-        src={adPage}
-        alt={`Anúncio ${adIndex + 1}`}
-      />
+                          input.click();
+                        }}
+                      >
+                        <img
+                          src={adPage}
+                          alt={`Anúncio ${adIndex + 1}`}
+                        />
 
-      <div className="journal-placeholder">
-        <Pencil className="h-8 w-8" />
-        Clique para escolher anúncio
-      </div>
-    </div>
-  </div>
-))}
+                        <div className="journal-placeholder">
+                          <Pencil className="h-8 w-8" />
+                          Clique para escolher anúncio
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                   
               </div>
 
