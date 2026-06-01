@@ -714,8 +714,17 @@ const [adPages, setAdPages] = useState<string[]>(() => {
         percentage: 100,
         currentCard: "Finalizado",
       });
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Erro ao processar a planilha.";
+    } catch (err: any) {
+      console.error("[handleUpload]", err);
+
+      const message = String(
+        err?.message ||
+        err?.shape?.message ||
+        err?.data?.message ||
+        err?.cause?.message ||
+        "Erro ao processar a planilha."
+      );
+
       setError(message);
     } finally {
       setIsProcessing(false);
