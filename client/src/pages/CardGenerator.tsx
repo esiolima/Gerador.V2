@@ -1520,7 +1520,7 @@ const [adPages, setAdPages] = useState<string[]>(() => {
                         </div>
                       </div>
                     </div>
-                  })()}
+                  ))}
                 </div>
               </div>
 
