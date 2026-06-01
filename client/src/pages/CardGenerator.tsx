@@ -383,7 +383,7 @@ function buildJournalPagesForPdf(journalElement: HTMLDivElement): JournalPagePay
 const PAGE_BACKGROUND_STORAGE_KEY = "jornal_page_background";
 const COVER_IMAGE_STORAGE_KEY = "jornal_cover_image";
 const HEADER_IMAGE_STORAGE_KEY = "jornal_header_image";
-const AD_IMAGE_STORAGE_KEY = "jornal_ad_image";
+const AD_PAGES_STORAGE_KEY = "jornal_ad_pages";
 const CATEGORY_BACKGROUNDS_STORAGE_KEY = "jornal_category_backgrounds";
 const CATEGORY_BAR_COLORS_STORAGE_KEY = "jornal_category_bar_colors";
 const CATEGORY_BAR_IMAGES_STORAGE_KEY = "jornal_category_bar_images";
@@ -424,16 +424,34 @@ export default function CardGenerator() {
     "/assets/header.png"
   );
 });
-  const [adImage, setAdImage] = useState<string>(() => {
+
+const [adPages, setAdPages] = useState<string[]>(() => {
   if (typeof window === "undefined") {
-    return "/assets/anuncio.png";
+    return ["/assets/anuncio.png"];
   }
 
-  return (
-    window.localStorage.getItem(AD_IMAGE_STORAGE_KEY) ||
-    "/assets/anuncio.png"
-  );
+  try {
+    const saved = window.localStorage.getItem(
+      AD_PAGES_STORAGE_KEY
+    );
+
+    if (!saved) {
+      return ["/assets/anuncio.png"];
+    }
+
+    const parsed = JSON.parse(saved);
+
+    if (!Array.isArray(parsed) || parsed.length === 0) {
+      return ["/assets/anuncio.png"];
+    }
+
+    return parsed;
+  } catch {
+    return ["/assets/anuncio.png"];
+  }
 });
+
+  
   const [categoryBackgrounds, setCategoryBackgrounds] = useState<Record<string, string>>(() => {
     if (typeof window === "undefined") return { __default: DEFAULT_JOURNAL_BACKGROUND };
 
@@ -490,7 +508,6 @@ export default function CardGenerator() {
 
   const coverInputRef = useRef<HTMLInputElement>(null);
   const headerInputRef = useRef<HTMLInputElement>(null);
-  const adInputRef = useRef<HTMLInputElement>(null);
 
   const [, setLocation] = useLocation();
 
@@ -705,7 +722,7 @@ export default function CardGenerator() {
   };
 
   const changeImage = async (
-    kind: "cover" | "header" | "ad",
+  kind: "cover" | "header",
     selectedFile?: File | null
   ) => {
     if (!selectedFile) return;
@@ -733,15 +750,28 @@ export default function CardGenerator() {
     dataUrl
   );
 }
-    if (kind === "ad") {
-  setAdImage(dataUrl);
 
-  window.localStorage.setItem(
-    AD_IMAGE_STORAGE_KEY,
-    dataUrl
+};
+
+  const changeAdPageImage = async (
+  index: number,
+  selectedFile?: File | null
+) => {
+  if (!selectedFile) return;
+
+  if (!selectedFile.type.startsWith("image/")) {
+    window.alert("Envie apenas arquivos de imagem.");
+    return;
+  }
+
+  const dataUrl = await readImageAsDataUrl(selectedFile);
+
+  setAdPages((current) =>
+    current.map((page, pageIndex) =>
+      pageIndex === index ? dataUrl : page
+    )
   );
-}
-  };
+};
 
   const generateJournalPdf = async () => {
     if (!journalRef.current || !result) return;
@@ -1449,23 +1479,47 @@ export default function CardGenerator() {
                     });
                   })()}
 
-                  <div className="journal-page-label">
-                    Página {journalCardPages.length + 2} — Anúncio
-                  </div>
+{adPages.map((adPage, adIndex) => (
+  <div key={`ad-page-${adIndex}`}>
+    <div className="journal-page-label">
+      Página {journalCardPages.length + 2 + adIndex} — Anúncio
+    </div>
 
-                  <div
-                    className="journal-page journal-ad-page"
-                    data-journal-page="ad"
-                    data-journal-title="Anúncio"
-                    onClick={() => adInputRef.current?.click()}
-                  >
-                    <img src={adImage} alt="Anúncio do jornal" />
-                    <div className="journal-placeholder">
-                      <Pencil className="h-8 w-8" />
-                      Clique para escolher anúncio
-                    </div>
-                  </div>
-                </div>
+    <div
+      className="journal-page journal-ad-page"
+      data-journal-page="ad"
+      data-journal-title={`Anúncio ${adIndex + 1}`}
+      onClick={() => {
+        const input = document.createElement("input");
+
+        input.type = "file";
+        input.accept = "image/*";
+
+        input.onchange = (event: Event) => {
+          const target = event.target as HTMLInputElement | null;
+
+          changeAdPageImage(
+            adIndex,
+            target?.files?.[0]
+          );
+        };
+
+        input.click();
+      }}
+    >
+      <img
+        src={adPage}
+        alt={`Anúncio ${adIndex + 1}`}
+      />
+
+      <div className="journal-placeholder">
+        <Pencil className="h-8 w-8" />
+        Clique para escolher anúncio
+      </div>
+    </div>
+  </div>
+))}
+                  
               </div>
 
               <div className="journal-zoom-controls" aria-label="Controle de zoom do visualizador">
@@ -1518,13 +1572,7 @@ export default function CardGenerator() {
               onChange={(event) => changeImage("header", event.target.files?.[0])}
             />
 
-            <input
-              ref={adInputRef}
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={(event) => changeImage("ad", event.target.files?.[0])}
-            />
+
           </section>
         )}
       </main>
