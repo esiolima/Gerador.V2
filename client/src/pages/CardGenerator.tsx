@@ -2135,28 +2135,25 @@ const journalCss = `
   }
 
   .journal-grid{
-    display:grid;
-    grid-template-columns:repeat(3, 320px);
-    justify-content:center;
-    justify-items:center;
-    gap:20px;
-    padding:20px 36px 36px 36px;
-    box-sizing:border-box;
-    align-content:start;
-  }
+  display:flex;
+  flex-wrap:wrap;
+  justify-content:center;
+  gap:20px;
+  padding:20px 36px 36px 36px;
+  box-sizing:border-box;
+  align-content:flex-start;
+}
 
-  /* Centraliza 1 card */
-  .journal-grid > .journal-card-wrap:only-child {
-    grid-column: 2;
-  }
-
-  /* Centraliza 2 cards */
-  .journal-grid:has(> .journal-card-wrap:nth-child(2)):not(:has(> .journal-card-wrap:nth-child(3))) > .journal-card-wrap:first-child {
-    grid-column: 1;
-  }
-  .journal-grid:has(> .journal-card-wrap:nth-child(2)):not(:has(> .journal-card-wrap:nth-child(3))) > .journal-card-wrap:nth-child(2) {
-    grid-column: 3;
-  }
+.journal-card-wrap{
+  position:relative;
+  width:320px;
+  height:476px;
+  border-radius:22px;
+  overflow:hidden;
+  background:#fff;
+  box-shadow:0 10px 20px rgba(0,0,0,.12);
+  flex:0 0 320px;
+}
 
   .journal-category-page:not(.is-last-category-page){
     padding-bottom:10px;
