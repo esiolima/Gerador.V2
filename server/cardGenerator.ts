@@ -63,7 +63,8 @@ const REQUIRED_HEADERS = [
   "legal",
   "urn",
   "uf",
-  "segmento",
+  "segmento"
+  "almais",
 ];
 
 const VALID_SELOS = [
