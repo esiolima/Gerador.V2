@@ -72,6 +72,28 @@ body {
   display: none;
 }
 
+/* ===== NOVO SELO ALMAIS ===== */
+.almais-selo {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 117px;
+  height: 58.5px;
+  z-index: 99999;
+  pointer-events: none;
+}
+
+.almais-selo img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+.almais-selo img[src=""] {
+  display: none;
+}
+
 /* ===== LOGO ===== */
 .logo {
   margin-top: 45px;
@@ -129,14 +151,14 @@ body {
   align-items: flex-end;
   justify-content: center;
   width: 100%;
-  max-width: 500px; /* 🔥 LIMITADOR PARA IGUALAR COM OS OUTROS */
+  max-width: 500px;
   margin-top: 10px;
 }
 
 .numero,
 .percent {
   font-weight: 900;
-  font-size: clamp(90px, 16.5vw, 180px); /* 🔥 AJUSTADO */
+  font-size: clamp(90px, 16.5vw, 180px);
   line-height: 0.85;
 }
 
@@ -252,6 +274,11 @@ body {
 
   <div class="selo">
     <img src="{{SELO}}" alt="Selo">
+  </div>
+
+  <!-- NOVO SELO ALMAIS -->
+  <div class="almais-selo">
+    <img src="{{ALMAIS_SELO}}" alt="Almais">
   </div>
 
   <div class="logo">
