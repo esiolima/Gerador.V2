@@ -510,7 +510,9 @@ private validateRows(rows: any[]): void {
   seloBase64: string
 ): string {
 
-  let valorFinal = String(row.valor ?? "");
+  let valorFinal = String(row.valor ?? "")
+  .replace(".", ",")
+  .trim();
 
   if (tipo !== "promocao") {
     valorFinal = valorFinal.replace(/%/g, "").trim();
