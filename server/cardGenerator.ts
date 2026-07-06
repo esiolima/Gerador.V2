@@ -502,35 +502,58 @@ private validateRows(rows: any[]): void {
   }
 
   private replacePlaceholders(
-    html: string,
-    row: any,
-    tipo: string,
-    logoBase64: string,
-    seloBase64: string
-  ): string {
-    let valorFinal = String(row.valor ?? "");
+  html: string,
+  row: any,
+  tipo: string,
+  logoBase64: string,
+  seloBase64: string
+): string {
 
-    if (tipo !== "promocao") {
-      valorFinal = valorFinal.replace(/%/g, "").trim();
-    }
+  let valorFinal = String(row.valor ?? "");
 
-    const segmentoRaw =
-      row.segmento && String(row.segmento).trim() !== ""
-        ? String(row.segmento).trim()
-        : "";
-
-    return html
-      .replaceAll("{{TEXTO}}", String(row.texto ?? ""))
-      .replaceAll("{{VALOR}}", valorFinal)
-      .replaceAll("{{COMPLEMENTO}}", String(row.complemento ?? ""))
-      .replaceAll("{{LEGAL}}", String(row.legal ?? ""))
-      .replaceAll("{{SEGMENTO}}", segmentoRaw)
-      .replaceAll("{{CUPOM}}", String(row.cupom ?? ""))
-      .replaceAll("{{UF}}", row.uf ? `UF: ${row.uf}` : "")
-      .replaceAll("{{URN}}", row.urn ? `URN: ${row.urn}` : "")
-      .replaceAll("{{LOGO}}", logoBase64)
-      .replaceAll("{{SELO}}", seloBase64);
+  if (tipo !== "promocao") {
+    valorFinal = valorFinal.replace(/%/g, "").trim();
   }
+
+  const segmentoRaw =
+    row.segmento && String(row.segmento).trim() !== ""
+      ? String(row.segmento).trim()
+      : "";
+
+  /* =========================
+     NOVO: ALMAIS
+  ========================= */
+
+  const almaisRaw = String(
+    row.almais || row.ALMAIS || ""
+  )
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+
+  const almaisBase64 = almaisRaw
+    ? this.imageToBase64(
+        path.join(
+          SELOS_DIR,
+          `${almaisRaw}.png`
+        )
+      )
+    : "";
+
+  return html
+    .replaceAll("{{TEXTO}}", String(row.texto ?? ""))
+    .replaceAll("{{VALOR}}", valorFinal)
+    .replaceAll("{{COMPLEMENTO}}", String(row.complemento ?? ""))
+    .replaceAll("{{LEGAL}}", String(row.legal ?? ""))
+    .replaceAll("{{SEGMENTO}}", segmentoRaw)
+    .replaceAll("{{CUPOM}}", String(row.cupom ?? ""))
+    .replaceAll("{{UF}}", row.uf ? `UF: ${row.uf}` : "")
+    .replaceAll("{{URN}}", row.urn ? `URN: ${row.urn}` : "")
+    .replaceAll("{{LOGO}}", logoBase64)
+    .replaceAll("{{SELO}}", seloBase64)
+    .replaceAll("{{ALMAIS_SELO}}", almaisBase64);
+}
 
   private async waitForPageReady(page: Page) {
     await page.evaluate(async () => {
