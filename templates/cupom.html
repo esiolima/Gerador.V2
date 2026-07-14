@@ -6,24 +6,24 @@
 
 <style>
 @font-face {
-  font-family: 'Inter';
-  src: url('../fonts/Inter-Regular.ttf') format('truetype');
+  font-family: 'Segoe UI';
+  src: url('../fonts/Segoe UI.ttf') format('truetype');
   font-weight: 400;
 }
 @font-face {
-  font-family: 'Inter';
-  src: url('../fonts/Inter-Bold.ttf') format('truetype');
+  font-family: 'Segoe UI';
+  src: url('../fonts/Segoe UI Bold.ttf') format('truetype');
   font-weight: 700;
 }
 @font-face {
-  font-family: 'Inter';
-  src: url('../fonts/Inter-Black.ttf') format('truetype');
+  font-family: 'Segoe UI';
+  src: url('../fonts/segoe-ui-black.ttf') format('truetype');
   font-weight: 900;
 }
 
 * {
   box-sizing: border-box;
-  font-family: Inter, sans-serif;
+  font-family: 'Segoe UI', Arial, sans-serif;
   text-transform: uppercase;
 }
 
@@ -97,7 +97,7 @@ body {
 /* ===== LOGO ===== */
 .logo {
   margin-top: 45px;
-  height: 142.5px;
+  height: 140px;
   width: 100%;
   display: flex;
   align-items: center;
@@ -106,8 +106,8 @@ body {
 }
 
 .logo img {
-  max-height: 142.5px;
-  max-width: 420px;
+  max-height: 140px;
+  max-width: 320px;
   object-fit: contain;
   display: block;
 }
@@ -129,13 +129,18 @@ body {
   margin-top: 10px;
   margin-bottom: 20px;
   white-space: nowrap;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
 }
 
 /* ===== TEXTO ===== */
 .condicao {
   margin-top: 0;
   margin-bottom: 15px;
-  max-width: 550px;
+  width: 100%;
   font-size: 28px;
   line-height: 1.15;
   text-align: center;
@@ -143,6 +148,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
+  box-sizing: border-box;
 }
 
 /* ===== BENEFÍCIO ===== */
@@ -151,8 +157,8 @@ body {
   align-items: flex-end;
   justify-content: center;
   width: 100%;
-  max-width: 500px;
   margin-top: 10px;
+  box-sizing: border-box;
 }
 
 .numero,
@@ -170,17 +176,25 @@ body {
   margin-top: 5px;
   font-size: clamp(40px, 5vw, 60px);
   font-weight: 700;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  box-sizing: border-box;
 }
 
 /* ===== FLEX ===== */
 .espaco-flexivel {
   margin-top: 15px;
   margin-bottom: 15px;
+  width: 100%;
   text-align: center;
   flex-grow: 1;
   display: flex;
   flex-direction: column;
   justify-content: center;
+  box-sizing: border-box;
 }
 
 .complemento {
@@ -198,12 +212,13 @@ body {
 .cupom-box {
   margin-top: 10px;
   margin-bottom: 20px;
-  width: 620px;
+  width: 100%;
   height: 110px;
   background: #16A7E0;
   border-radius: 16px;
   display: flex;
   overflow: hidden;
+  box-sizing: border-box;
 }
 
 /* LADO ESQUERDO */
@@ -330,14 +345,35 @@ window.addEventListener("load", function () {
 
     if (el && el.parentElement) {
       const container = el.parentElement;
-      let fontSize = 72;
-      const min = 20;
+      const containerStyle = window.getComputedStyle(container);
+      const paddingX =
+        parseFloat(containerStyle.paddingLeft || "0") +
+        parseFloat(containerStyle.paddingRight || "0");
+      const availableWidth = container.clientWidth - paddingX;
+      const minTargetWidth = availableWidth * 0.7;
 
+      const minFontSize = 20;
+      const maxFontSize = 88;
+
+      let fontSize = 72;
       el.style.fontSize = fontSize + "px";
 
-      while (el.scrollWidth > container.clientWidth && fontSize > min) {
+      // Encolhe se o texto estourar a largura disponível
+      while (el.scrollWidth > availableWidth && fontSize > minFontSize) {
         fontSize -= 1;
         el.style.fontSize = fontSize + "px";
+      }
+
+      // Cresce se o texto estiver ocupando menos de 70% da largura disponível
+      while (el.scrollWidth < minTargetWidth && fontSize < maxFontSize) {
+        fontSize += 1;
+        el.style.fontSize = fontSize + "px";
+
+        if (el.scrollWidth > availableWidth) {
+          fontSize -= 1;
+          el.style.fontSize = fontSize + "px";
+          break;
+        }
       }
     }
 
