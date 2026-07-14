@@ -90,18 +90,18 @@ function buildPageHtml(pageHtml: string, baseUrl: string) {
   <base href="${safeBaseUrl}" />
   <style>
     @font-face {
-      font-family: 'Inter';
-      src: url('/fonts/Inter-Regular.ttf') format('truetype');
+      font-family: 'Segoe UI';
+      src: url('/fonts/Segoe UI.ttf') format('truetype');
       font-weight: 400;
     }
     @font-face {
-      font-family: 'Inter';
-      src: url('/fonts/Inter-Bold.ttf') format('truetype');
+      font-family: 'Segoe UI';
+      src: url('/fonts/Segoe UI Bold.ttf') format('truetype');
       font-weight: 700;
     }
     @font-face {
-      font-family: 'Inter';
-      src: url('/fonts/Inter-Black.ttf') format('truetype');
+      font-family: 'Segoe UI';
+      src: url('/fonts/segoe-ui-black.ttf') format('truetype');
       font-weight: 900;
     }
 
@@ -113,7 +113,7 @@ function buildPageHtml(pageHtml: string, baseUrl: string) {
       padding: 0 !important;
       overflow: hidden !important;
       background: #ffffff !important;
-      font-family: Inter, Arial, sans-serif;
+      font-family: 'Segoe UI', Arial, sans-serif;
       color: #111111;
       -webkit-print-color-adjust: exact !important;
       print-color-adjust: exact !important;
@@ -179,14 +179,13 @@ function buildPageHtml(pageHtml: string, baseUrl: string) {
     }
 
     .journal-grid {
-      display: grid !important;
-      grid-template-columns: repeat(3, 320px) !important;
+      display: flex !important;
+      flex-wrap: wrap !important;
       justify-content: center !important;
-      justify-items: center !important;
       gap: 20px !important;
       padding: 20px 36px 36px 36px !important;
       box-sizing: border-box !important;
-      align-content: start !important;
+      align-content: flex-start !important;
     }
 
     .journal-card-shadow-host {
