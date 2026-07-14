@@ -1769,18 +1769,18 @@ const journalCss = `
   }
   
   @font-face {
-    font-family: 'Inter';
-    src: url('/fonts/Inter-Regular.ttf') format('truetype');
+    font-family: 'Segoe UI';
+    src: url('/fonts/Segoe UI.ttf') format('truetype');
     font-weight: 400;
   }
   @font-face {
-    font-family: 'Inter';
-    src: url('/fonts/Inter-Bold.ttf') format('truetype');
+    font-family: 'Segoe UI';
+    src: url('/fonts/Segoe UI Bold.ttf') format('truetype');
     font-weight: 700;
   }
   @font-face {
-    font-family: 'Inter';
-    src: url('/fonts/Inter-Black.ttf') format('truetype');
+    font-family: 'Segoe UI';
+    src: url('/fonts/segoe-ui-black.ttf') format('truetype');
     font-weight: 900;
   }
 
@@ -1963,7 +1963,7 @@ const journalCss = `
     margin:0 auto;
     background:#ffffff;
     color:#111;
-    font-family:Inter,Arial,sans-serif;
+    font-family:'Segoe UI',Arial,sans-serif;
   }
 
   .journal-page-label{
