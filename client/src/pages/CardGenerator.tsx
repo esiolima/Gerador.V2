@@ -441,7 +441,7 @@ const [adPages, setAdPages] = useState<string[]>(() => {
 
     const parsed = JSON.parse(saved);
 
-    if (!Array.isArray(parsed) || parsed.length === 0) {
+    if (!Array.isArray(parsed)) {
       return ["/assets/anuncio.png"];
     }
 
@@ -800,7 +800,7 @@ const [adPages, setAdPages] = useState<string[]>(() => {
 
   const removeAdPage = () => {
     setAdPages((current) => {
-      if (current.length <= 1) return current;
+      if (current.length <= 0) return current;
       return current.slice(0, -1);
     });
   };
@@ -1211,13 +1211,13 @@ const [adPages, setAdPages] = useState<string[]>(() => {
                     <button
                       type="button"
                       onClick={removeAdPage}
-                      disabled={adPages.length <= 1}
+                      disabled={adPages.length <= 0}
                       title="Remover última página de anúncio"
                       style={{
                         width: 28, height: 28, borderRadius: 8, border: "none",
-                        background: adPages.length <= 1 ? "#e2e8f0" : "#ef4444",
-                        color: adPages.length <= 1 ? "#94a3b8" : "#fff",
-                        fontWeight: 900, fontSize: 18, lineHeight: 1, cursor: adPages.length <= 1 ? "not-allowed" : "pointer"
+                        background: adPages.length <= 0 ? "#e2e8f0" : "#ef4444",
+                        color: adPages.length <= 0 ? "#94a3b8" : "#fff",
+                        fontWeight: 900, fontSize: 18, lineHeight: 1, cursor: adPages.length <= 0 ? "not-allowed" : "pointer"
                       }}
                     >
                       −
@@ -2146,13 +2146,13 @@ const journalCss = `
 
 .journal-card-wrap{
   position:relative;
-  width:320px;
-  height:476px;
+  width:307px;
+  height:457px;
   border-radius:22px;
   overflow:hidden;
   background:#fff;
   box-shadow:0 10px 20px rgba(0,0,0,.12);
-  flex:0 0 320px;
+  flex:0 0 307px;
 }
 
   .journal-category-page:not(.is-last-category-page){
@@ -2170,7 +2170,7 @@ const journalCss = `
   .journal-card-wrap{
     position:relative;
     width:100%;
-    height:476px;
+    height:457px;
     border-radius:22px;
     overflow:hidden;
     background:#fff;
@@ -2183,7 +2183,7 @@ const journalCss = `
     height:1058px;
     overflow:hidden;
     background:#fff;
-    transform:scale(.45);
+    transform:scale(.432);
     transform-origin:top left;
   }
 
