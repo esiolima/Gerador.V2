@@ -777,6 +777,7 @@ private validateRows(rows: any[]): void {
           await page.setContent(html, {
             waitUntil: "domcontentloaded",
             timeout: 60000,
+            baseURL: `file://${TEMPLATES_DIR}/`,
           });
 
           await this.waitForPageReady(page);
