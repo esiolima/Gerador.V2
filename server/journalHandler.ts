@@ -156,9 +156,8 @@ function buildPageHtml(pageHtml: string, baseUrl: string) {
       max-width: ${JOURNAL_WIDTH}px !important;
       height: auto !important;
       min-height: 0 !important;
-      max-height: ${FIXED_PAGE_HEIGHT}px !important;
       margin: 0 !important;
-      overflow: hidden !important;
+      overflow: visible !important;
       box-shadow: none !important;
       break-after: auto !important;
       page-break-after: auto !important;
@@ -238,6 +237,12 @@ async function getPdfPageHeight(page: Page, pageType: string) {
     return FIXED_PAGE_HEIGHT;
   }
 
+  // Teto de segurança bem alto apenas para evitar crescimento infinito por
+  // algum bug de layout — não deve limitar o conteúdo normal de uma página
+  // de categoria, que pode legitimamente precisar de mais que
+  // FIXED_PAGE_HEIGHT (ex: barra de categoria maior, textos legais longos).
+  const SAFETY_MAX_HEIGHT = 6000;
+
   const measuredHeight = await page.evaluate(() => {
     const pageElement = document.querySelector("[data-journal-page]") as HTMLElement | null;
 
@@ -259,7 +264,7 @@ async function getPdfPageHeight(page: Page, pageType: string) {
     );
   });
 
-  return Math.min(Math.max(measuredHeight || 1, 1), FIXED_PAGE_HEIGHT);
+  return Math.min(Math.max(measuredHeight || 1, 1), SAFETY_MAX_HEIGHT);
 }
 
 async function renderSinglePagePdf(
@@ -386,9 +391,12 @@ export function setupJournalRoute(app: Express) {
 
       browser = await launchBrowser();
 
-      const protocol = req.protocol || "http";
-      const host = req.get("host") || `localhost:${process.env.PORT || "3000"}`;
-      const baseUrl = `${protocol}://${host}`;
+      // O Puppeteer roda no mesmo container do servidor Express: usar o
+      // endereço local (loopback) evita depender de o container conseguir
+      // acessar sua própria URL pública pela internet (comum falhar em
+      // serviços como Railway/Render, causando fontes e imagens que não
+      // carregam silenciosamente no PDF).
+      const baseUrl = `http://127.0.0.1:${process.env.PORT || "3000"}`;
 
       const tempPdfPaths: string[] = [];
 
