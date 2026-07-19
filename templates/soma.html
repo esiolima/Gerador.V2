@@ -118,32 +118,14 @@ body {
 
 </div>
 
-<script>
-(function () {
-  const container = document.getElementById("valor-container");
-  const el = document.getElementById("valor-texto");
-
-  if (container && el) {
-    let fontSize = 480;
-    const min = 40;
-
-    el.style.fontSize = fontSize + "px";
-    el.style.whiteSpace = "normal";
-    el.style.wordBreak = "keep-all";
-    el.style.overflowWrap = "normal";
-
-    // Ajuste automático para caber no container
-    while (
-      (el.scrollHeight > container.clientHeight ||
-       el.scrollWidth > container.clientWidth) &&
-      fontSize > min
-    ) {
-      fontSize -= 2;
-      el.style.fontSize = fontSize + "px";
-    }
-  }
-})();
-</script>
+<!--
+  O ajuste de tamanho de fonte do #valor-texto NÃO é feito aqui.
+  Ele é aplicado pelo servidor (server/cardGenerator.ts -> injectFittingHelpers)
+  e, no preview, pelo CardGenerator.tsx (runCardFit) -- ambos já usam os mesmos
+  parâmetros (max 520px / min 22px). Ter um terceiro script aqui, rodando antes
+  da fonte Segoe UI carregar, media o texto errado e gerava tamanhos
+  inconsistentes entre o preview e o PDF/PNG final.
+-->
 
 </body>
 </html>

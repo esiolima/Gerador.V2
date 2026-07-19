@@ -339,44 +339,15 @@ body {
 </div>
 
 <script>
+/*
+  O ajuste de tamanho de fonte do #cupom-text NÃO é feito aqui.
+  Ele é aplicado pelo servidor (server/cardGenerator.ts -> injectFittingHelpers)
+  e, no preview, pelo CardGenerator.tsx (runCardFit). Manter essa lógica em um
+  único lugar evita que o card final gerado (PDF/PNG) fique com um tamanho de
+  fonte diferente do que foi visto no preview.
+*/
 window.addEventListener("load", function () {
   try {
-    const el = document.getElementById("cupom-text");
-
-    if (el && el.parentElement) {
-      const container = el.parentElement;
-      const containerStyle = window.getComputedStyle(container);
-      const paddingX =
-        parseFloat(containerStyle.paddingLeft || "0") +
-        parseFloat(containerStyle.paddingRight || "0");
-      const availableWidth = container.clientWidth - paddingX;
-      const minTargetWidth = availableWidth * 0.7;
-
-      const minFontSize = 20;
-      const maxFontSize = 88;
-
-      let fontSize = 72;
-      el.style.fontSize = fontSize + "px";
-
-      // Encolhe se o texto estourar a largura disponível
-      while (el.scrollWidth > availableWidth && fontSize > minFontSize) {
-        fontSize -= 1;
-        el.style.fontSize = fontSize + "px";
-      }
-
-      // Cresce se o texto estiver ocupando menos de 70% da largura disponível
-      while (el.scrollWidth < minTargetWidth && fontSize < maxFontSize) {
-        fontSize += 1;
-        el.style.fontSize = fontSize + "px";
-
-        if (el.scrollWidth > availableWidth) {
-          fontSize -= 1;
-          el.style.fontSize = fontSize + "px";
-          break;
-        }
-      }
-    }
-
     const segmento = document.getElementById("segmento-bloco");
 
     if (segmento) {
