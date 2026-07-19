@@ -796,10 +796,6 @@ private validateRows(rows: any[]): void {
             fullPage: false,
           });
         } catch (pageErr) {
-          console.error("======================================");
-          console.error("ERRO AO GERAR PDF");
-          console.error(pageErr);
-          console.error("======================================");
           throw pageErr;
         } finally {
           if (page) await page.close();
