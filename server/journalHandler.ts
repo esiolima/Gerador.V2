@@ -224,7 +224,7 @@ function buildPageHtml(pageHtml: string, baseUrl: string) {
       flex-wrap: wrap !important;
       justify-content: center !important;
       gap: 20px !important;
-      padding: 20px 36px 36px 36px !important;
+      padding: 20px 28px 36px 28px !important;
       box-sizing: border-box !important;
       align-content: flex-start !important;
     }
