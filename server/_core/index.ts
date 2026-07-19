@@ -125,6 +125,11 @@ async function startServer() {
     console.log(`Port ${preferredPort} is busy, using port ${port} instead`);
   }
 
+  // Guarda a porta real (pode diferir de process.env.PORT se ela estava
+  // ocupada) para uso interno, como requisições do Puppeteer ao próprio
+  // servidor durante a geração do PDF do jornal.
+  app.locals.actualPort = port;
+
   server.listen(port, () => {
     console.log(`Server running on http://localhost:${port}/`);
     console.log("Socket.io ready for real-time updates");
