@@ -2071,7 +2071,10 @@ const journalCss = `
   }
 
   .journal-category-bar{
-    width:calc(100% - 72px);
+    width:100%;
+  padding-left:36px;
+  padding-right:36px;
+  box-sizing:border-box;
     min-height:116px;
     margin:38px auto 24px auto;
     background:#0f6bc8;
@@ -2139,7 +2142,7 @@ const journalCss = `
   flex-wrap:wrap;
   justify-content:center;
   gap:20px;
-  padding:20px 36px 36px 36px;
+  padding:20px 0 36px;
   box-sizing:border-box;
   align-content:flex-start;
 }
@@ -2169,8 +2172,9 @@ const journalCss = `
 
   .journal-card-wrap{
     position:relative;
-    width:100%;
+    width:307px;
     height:457px;
+    flex:0 0 307px;
     border-radius:22px;
     overflow:hidden;
     background:#fff;
