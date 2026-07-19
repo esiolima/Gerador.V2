@@ -5,8 +5,50 @@ import puppeteer, { Browser, Page } from "puppeteer-core";
 import { PDFDocument } from "pdf-lib";
 
 const OUTPUT_DIR = path.resolve("output");
+const FONTS_DIR = path.resolve("fonts");
 const JOURNAL_WIDTH = 1080;
 const FIXED_PAGE_HEIGHT = 1920;
+
+const fontBase64Cache = new Map<string, string>();
+
+function getFontMimeType(fileName: string): string {
+  const ext = path.extname(fileName).toLowerCase();
+  if (ext === ".otf") return "font/otf";
+  if (ext === ".woff") return "font/woff";
+  if (ext === ".woff2") return "font/woff2";
+  return "font/truetype";
+}
+
+// Substitui qualquer url('.../fonts/arquivo.ttf') por uma data URI em base64,
+// lida diretamente do disco. Isso elimina qualquer dependência de rede
+// (HTTP/loopback) para carregar fontes durante a geração do PDF — a fonte
+// nunca falha silenciosamente por causa de proxy, porta dinâmica ou o
+// container não conseguir acessar a própria URL pública.
+function embedFontsAsBase64(html: string): string {
+  return html.replace(
+    /url\((['"]?)(?:\.\.\/|\/)*fonts\/([^'")]+)\1\)/g,
+    (match, quote, rawFileName) => {
+      const fileName = decodeURIComponent(rawFileName);
+
+      try {
+        let base64 = fontBase64Cache.get(fileName);
+
+        if (!base64) {
+          const filePath = path.join(FONTS_DIR, fileName);
+          const fileBuffer = fs.readFileSync(filePath);
+          base64 = fileBuffer.toString("base64");
+          fontBase64Cache.set(fileName, base64);
+        }
+
+        const mimeType = getFontMimeType(fileName);
+        return `url("data:${mimeType};base64,${base64}")`;
+      } catch (error) {
+        console.error(`[JournalHandler] Falha ao embutir fonte "${fileName}":`, error);
+        return match;
+      }
+    }
+  );
+}
 
 type JournalPagePayload = {
   type: "cover" | "category" | "ad" | string;
@@ -264,7 +306,11 @@ async function getPdfPageHeight(page: Page, pageType: string) {
     );
   });
 
-  return Math.min(Math.max(measuredHeight || 1, 1), SAFETY_MAX_HEIGHT);
+  // Usa FIXED_PAGE_HEIGHT como altura mínima (igual capa/anúncio, pra todas
+  // as páginas ficarem visualmente uniformes num visualizador de PDF), mas
+  // permite crescer além disso nos casos raros em que o conteúdo realmente
+  // precisar de mais espaço (evita voltar a cortar conteúdo).
+  return Math.min(Math.max(measuredHeight || 1, FIXED_PAGE_HEIGHT), SAFETY_MAX_HEIGHT);
 }
 
 async function renderSinglePagePdf(
@@ -293,7 +339,7 @@ async function renderSinglePagePdf(
       deviceScaleFactor: 1,
     });
 
-    await page.setContent(buildPageHtml(journalPage.html, baseUrl), {
+    await page.setContent(embedFontsAsBase64(buildPageHtml(journalPage.html, baseUrl)), {
       waitUntil: "domcontentloaded",
       timeout: 90000,
     });
@@ -395,8 +441,11 @@ export function setupJournalRoute(app: Express) {
       // endereço local (loopback) evita depender de o container conseguir
       // acessar sua própria URL pública pela internet (comum falhar em
       // serviços como Railway/Render, causando fontes e imagens que não
-      // carregam silenciosamente no PDF).
-      const baseUrl = `http://127.0.0.1:${process.env.PORT || "3000"}`;
+      // carregam silenciosamente no PDF). Usa a porta real em que o
+      // servidor está escutando (pode diferir de process.env.PORT se essa
+      // porta estava ocupada e o servidor precisou usar outra).
+      const actualPort = req.app.locals.actualPort || process.env.PORT || "3000";
+      const baseUrl = `http://127.0.0.1:${actualPort}`;
 
       const tempPdfPaths: string[] = [];
 
