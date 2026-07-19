@@ -1,1 +1,323 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=700, initial-scale=1.0" />
+<title>BC</title>
 
+<style>
+@font-face {
+  font-family: 'Segoe UI';
+  src: url('../fonts/Segoe UI.ttf') format('truetype');
+  font-weight: 400;
+}
+@font-face {
+  font-family: 'Segoe UI';
+  src: url('../fonts/Segoe UI Bold.ttf') format('truetype');
+  font-weight: 700;
+}
+@font-face {
+  font-family: 'Segoe UI';
+  src: url('../fonts/segoe-ui-black.ttf') format('truetype');
+  font-weight: 900;
+}
+
+* {
+  box-sizing: border-box;
+  text-transform: uppercase;
+  font-family: 'Segoe UI', Arial, sans-serif;
+  color: #1F3C6E;
+}
+
+body {
+  margin: 0;
+  width: 700px;
+  height: 1058px;
+  background: transparent;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.card {
+  width: 700px;
+  height: 1058px;
+  border: 8px solid #e0b84b;
+  border-radius: 40px;
+  background: #ffffff;
+  padding: 55px 40px 38px 40px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  overflow: hidden;
+  position: relative;
+}
+
+/* ===== SELO ===== */
+.selo {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  width: 117px;
+  height: 58.5px;
+  background: transparent;
+  z-index: 99999;
+  pointer-events: none;
+}
+
+.selo img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+.selo img[src=""] {
+  display: none;
+}
+
+/* ===== NOVO SELO ALMAIS ===== */
+.almais-selo {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 117px;
+  height: 58.5px;
+  background: transparent;
+  z-index: 99999;
+  pointer-events: none;
+}
+
+.almais-selo img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+.almais-selo img[src=""] {
+  display: none;
+}
+
+/* ===== TOPO ===== */
+.topo {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.logo {
+  width: 100%;
+  height: 140px;
+  margin-bottom: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.logo img {
+  max-width: 320px;
+  max-height: 140px;
+  object-fit: contain;
+}
+
+.logo img[src=""] {
+  display: none;
+}
+
+.logo:has(img[src=""]),
+.logo:not(:has(img)) {
+  background: #ffffff;
+  border-radius: 16px;
+}
+
+.logo:has(img[src=""])::before,
+.logo:not(:has(img))::before {
+  content: "";
+  display: none;
+}
+
+.tarja {
+  background: #003e87;
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 42px;
+  text-align: center;
+  padding: 18px 40px;
+  border-radius: 999px;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 22px;
+  white-space: nowrap;
+}
+
+/* ===== BLOCO CENTRAL ===== */
+.area-central {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+}
+
+.texto-topo {
+  font-size: 26px;
+  line-height: 1.18;
+  width: 100%;
+  text-align: center;
+  word-break: break-word;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.valor-container {
+  width: 100%;
+  height: 245px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  overflow: hidden;
+}
+
+.valor-texto {
+  font-weight: 900;
+  font-size: clamp(120px, 25vw, 270px);
+  line-height: 0.85;
+  white-space: nowrap;
+  text-align: center;
+  display: inline-block;
+}
+
+.desconto {
+  font-size: 46px;
+  font-weight: 700;
+  line-height: 1;
+  width: 100%;
+  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.complemento {
+  font-size: 24px;
+  line-height: 1.15;
+  width: 100%;
+  text-align: center;
+  word-break: break-word;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.legal {
+  font-size: 18px;
+  line-height: 1.15;
+  width: 100%;
+  text-align: center;
+  word-break: break-word;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ===== RODAPÉ ===== */
+.rodape {
+  text-align: center;
+  margin-bottom: 8px;
+}
+
+.uf {
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.segmento-wrapper {
+  margin-top: 12px;
+  font-size: 18px;
+  font-weight: 400;
+}
+</style>
+</head>
+
+<body>
+
+<div class="card">
+
+  <div class="selo">
+    <img src="{{SELO}}" alt="Selo" />
+  </div>
+
+  <!-- NOVO SELO ALMAIS -->
+  <div class="almais-selo">
+    <img src="{{ALMAIS_SELO}}" alt="Almais" />
+  </div>
+
+  <div class="topo">
+    <div class="logo">
+      <img src="{{LOGO}}" alt="Logo" />
+    </div>
+
+    <div class="tarja">
+      BC
+    </div>
+  </div>
+
+  <div class="area-central">
+
+    <div class="texto-topo">
+      {{TEXTO}}
+    </div>
+
+    <div class="valor-container">
+      <div class="valor-texto">
+        {{VALOR}}%
+      </div>
+    </div>
+
+    <div class="desconto">
+      DE DESCONTO
+    </div>
+
+    <div class="complemento">
+      {{COMPLEMENTO}}
+    </div>
+
+    <div class="legal">
+      {{LEGAL}}
+    </div>
+
+  </div>
+
+  <div class="rodape">
+    <div class="uf">{{URN}}</div>
+    <div class="uf">{{UF}}</div>
+
+    <div class="segmento-wrapper" id="segmento-bloco">
+      NEGÓCIO DE CLIENTES: {{SEGMENTO}}
+    </div>
+  </div>
+
+</div>
+
+<script>
+window.addEventListener("load", function () {
+
+  const segmento = document.getElementById("segmento-bloco");
+
+  if (segmento) {
+    const texto = segmento.textContent ? segmento.textContent.trim() : "";
+
+    if (!texto || texto === "NEGÓCIO DE CLIENTES:") {
+      segmento.style.display = "none";
+    }
+  }
+
+});
+</script>
+
+</body>
+</html>
