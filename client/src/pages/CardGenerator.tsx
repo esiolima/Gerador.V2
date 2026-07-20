@@ -2136,15 +2136,21 @@ const journalCss = `
   }
 
   .journal-grid {
-    display: grid;
-    grid-template-columns: repeat(3, 302.78px);
-    grid-auto-rows: min-content;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
     gap: 16px;
     padding: 20px 40px 36px 40px;
     box-sizing: border-box;
-    align-items: start;
-    align-content: start;
-    justify-content: center;
+    align-items: flex-start;
+    align-content: flex-start;
+    width: 1080px;
+  }
+
+  .journal-grid::after {
+    content: '';
+    flex: 1 1 940.34px;
+    visibility: hidden;
   }
 
   .journal-card-wrap {
