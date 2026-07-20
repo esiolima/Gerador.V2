@@ -201,10 +201,19 @@ function buildPageHtml(pageHtml: string, baseUrl: string) {
       height: auto !important;
       min-height: 0 !important;
       margin: 0 !important;
-      overflow: visible !important;
+      overflow: hidden !important;
       box-shadow: none !important;
       break-after: auto !important;
       page-break-after: auto !important;
+    }
+
+    .journal-root,
+    .journal-page,
+    .journal-category-page,
+    [data-journal-page] {
+      width: ${JOURNAL_WIDTH}px !important;
+      min-width: ${JOURNAL_WIDTH}px !important;
+      max-width: ${JOURNAL_WIDTH}px !important;
     }
 
     .journal-card-wrap {
@@ -223,13 +232,14 @@ function buildPageHtml(pageHtml: string, baseUrl: string) {
 
     .journal-grid {
       display: grid !important;
-      grid-template-columns: repeat(3, 1fr) !important;
+      grid-template-columns: repeat(3, 302.78px) !important;
       grid-auto-rows: min-content !important;
       gap: 16px !important;
       padding: 20px 40px 36px 40px !important;
       box-sizing: border-box !important;
       align-items: start !important;
       align-content: start !important;
+      justify-content: center !important;
     }
 
     .journal-card-shadow-host {
@@ -272,22 +282,33 @@ async function getPdfPageHeight(page: Page, pageType: string) {
     return FIXED_PAGE_HEIGHT;
   }
 
-  const HEADER_HEIGHT = 260;
-  const CATEGORY_BAR_HEIGHT = 120;
-  const FOOTER_HEIGHT = 80;
-  const MARGIN_Y = 80;
-  const CARD_HEIGHT = 458;
-  const GRID_GAP = 16;
+  // Medir a altura real do elemento renderizado no navegador.
+  const measuredHeight = await page.evaluate(() => {
+    const pageElement = document.querySelector('[data-journal-page="category"]')
+      || document.querySelector('.journal-category-page')
+      || document.querySelector('[data-journal-page]');
 
-  const cardsCount = await page.evaluate(() => {
-    const cards = document.querySelectorAll('.journal-card-wrap');
-    return cards ? cards.length : 0;
+    if (pageElement) {
+      return Math.ceil(Math.max(
+        pageElement.scrollHeight,
+        pageElement.offsetHeight,
+        pageElement.getBoundingClientRect().height
+      ));
+    }
+
+    // Fallback: usar o body.
+    const body = document.body;
+    const html = document.documentElement;
+    return Math.ceil(Math.max(
+      body.scrollHeight,
+      body.offsetHeight,
+      html.scrollHeight,
+      html.offsetHeight
+    ));
   });
 
-  const rows = Math.ceil(cardsCount / 3);
-  const contentHeight = HEADER_HEIGHT + CATEGORY_BAR_HEIGHT + FOOTER_HEIGHT + MARGIN_Y + (rows * (CARD_HEIGHT + GRID_GAP));
-  
-  const finalHeight = Math.max(FIXED_PAGE_HEIGHT, contentHeight);
+  // Altura mínima igual à capa para uniformidade visual.
+  const finalHeight = Math.max(FIXED_PAGE_HEIGHT, measuredHeight);
 
   return Math.min(Math.ceil(finalHeight), 6000);
 }
