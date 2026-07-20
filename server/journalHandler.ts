@@ -220,13 +220,14 @@ function buildPageHtml(pageHtml: string, baseUrl: string) {
     }
 
     .journal-grid {
-      display: flex !important;
-      flex-wrap: wrap !important;
-      justify-content: center !important;
-      gap: 20px !important;
-      padding: 20px 28px 36px 28px !important;
+      display: grid !important;
+      grid-template-columns: repeat(3, 1fr) !important;
+      grid-auto-rows: min-content !important;
+      gap: 16px !important;
+      padding: 20px 40px 36px 40px !important;
       box-sizing: border-box !important;
-      align-content: flex-start !important;
+      align-items: start !important;
+      align-content: start !important;
     }
 
     .journal-card-shadow-host {
@@ -279,38 +280,24 @@ async function getPdfPageHeight(page: Page, pageType: string) {
     return FIXED_PAGE_HEIGHT;
   }
 
-  // Teto de segurança bem alto apenas para evitar crescimento infinito por
-  // algum bug de layout — não deve limitar o conteúdo normal de uma página
-  // de categoria, que pode legitimamente precisar de mais que
-  // FIXED_PAGE_HEIGHT (ex: barra de categoria maior, textos legais longos).
-  const SAFETY_MAX_HEIGHT = 6000;
+  const HEADER_HEIGHT = 260;
+  const CATEGORY_BAR_HEIGHT = 120;
+  const FOOTER_HEIGHT = 80;
+  const MARGIN_Y = 80;
+  const CARD_HEIGHT = 457.06;
+  const GRID_GAP = 16;
 
-  const measuredHeight = await page.evaluate(() => {
-    const pageElement = document.querySelector("[data-journal-page]") as HTMLElement | null;
-
-    if (pageElement) {
-      const rect = pageElement.getBoundingClientRect();
-      return Math.ceil(Math.max(pageElement.scrollHeight, pageElement.offsetHeight, rect.height));
-    }
-
-    const body = document.body;
-    const html = document.documentElement;
-
-    return Math.ceil(
-      Math.max(
-        body.scrollHeight,
-        body.offsetHeight,
-        html.scrollHeight,
-        html.offsetHeight
-      )
-    );
+  const cardsCount = await page.evaluate(() => {
+    const cards = document.querySelectorAll('.journal-card-wrap');
+    return cards ? cards.length : 0;
   });
 
-  // Usa FIXED_PAGE_HEIGHT como altura mínima (igual capa/anúncio, pra todas
-  // as páginas ficarem visualmente uniformes num visualizador de PDF), mas
-  // permite crescer além disso nos casos raros em que o conteúdo realmente
-  // precisar de mais espaço (evita voltar a cortar conteúdo).
-  return Math.min(Math.max(measuredHeight || 1, FIXED_PAGE_HEIGHT), SAFETY_MAX_HEIGHT);
+  const rows = Math.ceil(cardsCount / 3);
+  const contentHeight = HEADER_HEIGHT + CATEGORY_BAR_HEIGHT + FOOTER_HEIGHT + MARGIN_Y + (rows * (CARD_HEIGHT + GRID_GAP));
+  
+  const finalHeight = Math.max(FIXED_PAGE_HEIGHT, contentHeight);
+
+  return Math.min(finalHeight, 6000);
 }
 
 async function renderSinglePagePdf(
