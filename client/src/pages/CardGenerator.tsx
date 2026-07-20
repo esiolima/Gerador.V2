@@ -2137,13 +2137,14 @@ const journalCss = `
 
   .journal-grid {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(3, 302.78px);
     grid-auto-rows: min-content;
     gap: 16px;
     padding: 20px 40px 36px 40px;
     box-sizing: border-box;
     align-items: start;
     align-content: start;
+    justify-content: center;
   }
 
   .journal-card-wrap {
