@@ -8,6 +8,13 @@ const OUTPUT_DIR = path.resolve("output");
 const FONTS_DIR = path.resolve("fonts");
 const JOURNAL_WIDTH = 1080;
 const FIXED_PAGE_HEIGHT = 1920;
+const CARD_WIDTH = 302.78;
+const CARD_HEIGHT_PX = 458;
+const GRID_GAP = 16;
+const GRID_PADDING_X = 40;
+const GRID_PADDING_Y_TOP = 20;
+const GRID_PADDING_Y_BOTTOM = 36;
+const THREE_CARDS_WIDTH = 3 * CARD_WIDTH + 2 * GRID_GAP;
 
 const fontBase64Cache = new Map<string, string>();
 
@@ -231,15 +238,21 @@ function buildPageHtml(pageHtml: string, baseUrl: string) {
     }
 
     .journal-grid {
-      display: grid !important;
-      grid-template-columns: repeat(3, 302.78px) !important;
-      grid-auto-rows: min-content !important;
+      display: flex !important;
+      flex-wrap: wrap !important;
+      justify-content: center !important;
       gap: 16px !important;
       padding: 20px 40px 36px 40px !important;
       box-sizing: border-box !important;
-      align-items: start !important;
-      align-content: start !important;
-      justify-content: center !important;
+      align-items: flex-start !important;
+      align-content: flex-start !important;
+      width: ${JOURNAL_WIDTH}px !important;
+    }
+
+    .journal-grid::after {
+      content: '' !important;
+      flex: 1 1 ${THREE_CARDS_WIDTH}px !important;
+      visibility: hidden !important;
     }
 
     .journal-card-shadow-host {
