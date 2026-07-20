@@ -276,7 +276,7 @@ async function getPdfPageHeight(page: Page, pageType: string) {
   const CATEGORY_BAR_HEIGHT = 120;
   const FOOTER_HEIGHT = 80;
   const MARGIN_Y = 80;
-  const CARD_HEIGHT = 457.06;
+  const CARD_HEIGHT = 458;
   const GRID_GAP = 16;
 
   const cardsCount = await page.evaluate(() => {
@@ -289,7 +289,7 @@ async function getPdfPageHeight(page: Page, pageType: string) {
   
   const finalHeight = Math.max(FIXED_PAGE_HEIGHT, contentHeight);
 
-  return Math.min(finalHeight, 6000);
+  return Math.min(Math.ceil(finalHeight), 6000);
 }
 
 async function renderSinglePagePdf(
@@ -332,16 +332,20 @@ async function renderSinglePagePdf(
 
     const finalHeight = await getPdfPageHeight(page, journalPage.type);
 
+    // Garante valores inteiros para evitar erro int32 do protocolo.
+    const safeHeight = Math.ceil(finalHeight);
+    const safeWidth = Math.ceil(JOURNAL_WIDTH);
+
     await page.setViewport({
-      width: JOURNAL_WIDTH,
-      height: finalHeight,
+      width: safeWidth,
+      height: safeHeight,
       deviceScaleFactor: 1,
     });
 
     await page.pdf({
       path: outputPath,
-      width: `${JOURNAL_WIDTH}px`,
-      height: `${finalHeight}px`,
+      width: `${safeWidth}px`,
+      height: `${safeHeight}px`,
       printBackground: true,
       preferCSSPageSize: false,
       margin: {
