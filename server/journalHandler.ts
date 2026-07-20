@@ -105,6 +105,8 @@ async function launchBrowser(): Promise<Browser> {
   return puppeteer.launch({
     executablePath,
     headless: true,
+    timeout: 180000,
+    protocolTimeout: 180000,
     args: [
       "--no-sandbox",
       "--disable-setuid-sandbox",
@@ -247,30 +249,20 @@ function buildPageHtml(pageHtml: string, baseUrl: string) {
 }
 
 async function waitForPageReady(page: Page) {
-  await page.evaluate(async () => {
-    try {
+  try {
+    // Aguarda que as fontes estejam carregadas (já embutidas em base64).
+    await page.evaluate(async () => {
       // @ts-ignore
-      if (document.fonts?.ready) await document.fonts.ready;
+      if (document.fonts?.ready) {
+        await document.fonts.ready;
+      }
+    });
+  } catch (error) {
+    // Fontes já embutidas; ignorar falhas silenciosamente.
+  }
 
-      const images = Array.from(document.images);
-
-      await Promise.all(
-        images.map((img) => {
-          if (img.complete) return Promise.resolve();
-
-          return new Promise<void>((resolve) => {
-            img.onload = () => resolve();
-            img.onerror = () => resolve();
-            setTimeout(resolve, 5000);
-          });
-        })
-      );
-
-      await new Promise((resolve) => setTimeout(resolve, 400));
-    } catch (error) {
-      console.error("[JournalHandler][waitForPageReady]", error);
-    }
-  });
+  // Pausa curta para garantir que o CSS grid tenha calculado o layout.
+  await new Promise((resolve) => setTimeout(resolve, 300));
 }
 
 
@@ -320,15 +312,20 @@ async function renderSinglePagePdf(
       console.error(`[JournalHandler][pageerror][${journalPage.type}]`, error);
     });
 
+    // Escreve o HTML em arquivo temporário e carrega via file:// para evitar
+    // timeout de setContent em payload grande (base64 de imagens, shadow DOM, etc.).
+    const tempHtmlFile = outputPath.replace(/\.pdf$/, ".html");
+    fs.writeFileSync(tempHtmlFile, embedFontsAsBase64(buildPageHtml(journalPage.html, baseUrl)), "utf-8");
+
     await page.setViewport({
       width: JOURNAL_WIDTH,
       height: FIXED_PAGE_HEIGHT,
       deviceScaleFactor: 1,
     });
 
-    await page.setContent(embedFontsAsBase64(buildPageHtml(journalPage.html, baseUrl)), {
+    await page.goto(`file://${tempHtmlFile}`, {
       waitUntil: "domcontentloaded",
-      timeout: 90000,
+      timeout: 120000,
     });
 
     await waitForPageReady(page);
@@ -353,8 +350,11 @@ async function renderSinglePagePdf(
         bottom: "0px",
         left: "0px",
       },
-      timeout: 120000,
+      timeout: 180000,
     });
+
+    // Limpa o HTML temporário após gerar o PDF.
+    try { fs.unlinkSync(tempHtmlFile); } catch {}
   } finally {
     await page.close().catch(() => {});
   }
