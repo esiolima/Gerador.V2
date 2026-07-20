@@ -817,7 +817,7 @@ const [adPages, setAdPages] = useState<string[]>(() => {
     const controller = new AbortController();
     const timeoutId = window.setTimeout(() => {
       controller.abort();
-    }, 240000);
+    }, 600000);
 
     let fakeProgressTimer: number | null = null;
 
