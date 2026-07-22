@@ -376,27 +376,29 @@ async function renderSinglePagePdf(
       deviceScaleFactor: 1,
     });
 
-    await page.pdf({
-      path: outputPath,
-      width: `${safeWidth}px`,
-      height: `${safeHeight}px`,
-      printBackground: true,
-      preferCSSPageSize: false,
-      margin: {
-        top: "0px",
-        right: "0px",
-        bottom: "0px",
-        left: "0px",
-      },
-      timeout: 180000,
-    });
+await page.pdf({
+    path: outputPath,
+    width: '${safeWidth}px',
+    height: '${safeHeight}px',
+    printBackground: true,
+    preferCSSPageSize: false,
+    margin: {
+        top: '0px',
+        right: '0px',
+        bottom: '0px',
+        left: '0px',
+    },
+    timeout: 180000,
+});
 
-    // Limpa o HTML temporário após gerar o PDF.
-    try { fs.unlinkSync(tempHtmlFile); } catch {}
-  } finally {
+try {
+    fs.unlinkSync(tempHtmlFile);
+} catch (err) {
+    console.error('Erro ao remover arquivo temporário:', err);
+} finally {
     await page.close().catch(() => {});
-  }
 }
+
 
 async function mergePdfFiles(pdfPaths: string[], finalPdfPath: string) {
   const finalPdf = await PDFDocument.create();
