@@ -26,11 +26,7 @@ function getFontMimeType(fileName: string): string {
   return "font/truetype";
 }
 
-// Substitui qualquer url('.../fonts/arquivo.ttf') por uma data URI em base64,
-// lida diretamente do disco. Isso elimina qualquer dependência de rede
-// (HTTP/loopback) para carregar fontes durante a geração do PDF — a fonte
-// nunca falha silenciosamente por causa de proxy, porta dinâmica ou o
-// container não conseguir acessar a própria URL pública.
+
 function embedFontsAsBase64(html: string): string {
   return html.replace(
     /url\((['"]?)(?:\.\.\/|\/)*fonts\/([^'")]+)\1\)/g,
