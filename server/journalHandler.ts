@@ -375,29 +375,59 @@ async function renderSinglePagePdf(
       height: safeHeight,
       deviceScaleFactor: 1,
     });
+// Detecta o tipo de página pelo próprio HTML
+const htmlContent = await page.content();
 
-await page.pdf({
-    path: outputPath,
-    width: '${safeWidth}px',
-    height: '${safeHeight}px',
-    printBackground: true,
-    preferCSSPageSize: false,
-    margin: {
-        top: '0px',
-        right: '0px',
-        bottom: '0px',
-        left: '0px',
-    },
-    timeout: 180000,
+const isCover = htmlContent.includes("journal-cover");
+const isAdPage = htmlContent.includes("journal-ad-page");
+const isCardsPage = htmlContent.includes("journal-cards-page");
+
+// Largura fixa para todas as páginas
+const widthPx = 1080;
+
+// Altura depende do tipo da página
+let heightPx = 1920; // padrão para capa e anúncios
+
+if (isCardsPage) {
+  // mede a altura real do HTML
+  const realHeight = await page.evaluate(() => document.body.scrollHeight);
+
+  // nunca maior que 1920
+  heightPx = Math.min(realHeight, 1920);
+}
+
+// aplica viewport
+await page.setViewport({
+  width: widthPx,
+  height: heightPx,
+  deviceScaleFactor: 1,
 });
 
+// gera o PDF
+await page.pdf({
+  path: outputPath,
+  width: `${widthPx}px`,
+  height: `${heightPx}px`,
+  printBackground: true,
+  preferCSSPageSize: false,
+  margin: {
+    top: "0px",
+    right: "0px",
+    bottom: "0px",
+    left: "0px",
+  },
+  timeout: 180000,
+});
+
+// mantém o cleanup do arquivo temporário
 try {
-    fs.unlinkSync(tempHtmlFile);
+  fs.unlinkSync(tempHtmlFile);
 } catch (err) {
-    console.error('Erro ao remover arquivo temporário:', err);
+  console.error("Erro ao remover arquivo temporário:", err);
 } finally {
-    await page.close().catch(() => {});
+  await page.close().catch(() => {});
 }
+
 
 
 async function mergePdfFiles(pdfPaths: string[], finalPdfPath: string) {
